@@ -496,6 +496,7 @@ _HTML_STR = """<!DOCTYPE html>
   --bg:#07070f;--card:#0e0e1c;--border:#1c1c34;
   --green:#00e676;--red:#ff4444;--blue:#4da6ff;--dim:#606080;--text:#cccce0;--bright:#f0f0ff;
 }
+html{font-size:110%}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
 .wrap{max-width:880px;margin:0 auto;padding:44px 20px}
