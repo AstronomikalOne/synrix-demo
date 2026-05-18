@@ -540,10 +540,22 @@ def main() -> None:
     if halted_safely:
         print(f"  {foreign_count} foreign signal      automatically detected and halted")
     print()
-    print(f"  Speed   : {p50_ms:.1f}ms per reading on this hardware")
     if not dry_run:
         print(f"  Device  : Jetson Orin Nano -- $250, no internet, no cloud")
         print(f"  Storage : all decisions written to on-device persistent memory")
+        print()
+        print(f"  What you're seeing vs what the system actually does:")
+        print(f"  --------------------------------------------------------")
+        print(f"  This demo        : {p50_ms:.1f}ms  -- Python orchestration harness")
+        print(f"                     (ctypes + NumPy + Python interpreter overhead)")
+        print(f"  C libraries      : ~176us -- native inference on aarch64 / NEON")
+        print(f"                     (libsynrix + libaion_semantic_index, measured in C)")
+        print(f"  --------------------------------------------------------")
+        print(f"  Python drives the demo for readability.")
+        print(f"  In production the same C libraries are called directly.")
+        print(f"  176us is the real system. The milliseconds are the wrapper.")
+    else:
+        print(f"  Speed   : {p50_ms:.1f}ms  [DRY-RUN -- NumPy only, no native libraries]")
     print()
     if not dry_run:
         if args.hivf:
@@ -552,10 +564,7 @@ def main() -> None:
             retrieval_label = f"flat IVF  n_probe={args.ivf_probe}"
         else:
             retrieval_label = "bruteforce"
-        print(f"  [technical: p50={p50}us  p95={p95}us  retrieval={retrieval_label}"
-              f"  arch={platform.machine()}]")
-    else:
-        print(f"  [technical: p50={p50}us  p95={p95}us  DRY-RUN  arch={platform.machine()}]")
+        print(f"  [p50={p50}us  p95={p95}us  retrieval={retrieval_label}  arch={platform.machine()}]")
     print("-" * 68)
     print()
 

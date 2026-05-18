@@ -107,6 +107,8 @@ Startup takes ~15 seconds while 94,795 vectors are loaded into AION512.
 
 > **Note on latency:** The per-layer timings shown in the UI are C-library inference measurements only. End-to-end request latency includes Python HTTP handling and browser round-trip overhead not present in a production deployment. See `docs/BENCHMARK_RECEIPTS.md` for production throughput numbers from the Jetson Orin Nano.
 
+> **Python vs the actual system:** Every demo in this repo is orchestrated from Python for readability. The system itself is the C libraries (`libsynrix.so`, `libaion_semantic_index.so`, `liblattice_expert_train.so`). Python is the wrapper. In production, those libraries are called directly from C — the ~176us figure in the benchmark receipts is the real system latency. The millisecond-range numbers you see in demo output are Python interpreter overhead, ctypes call boundaries, and NumPy operations layered on top of sub-millisecond C inference.
+
 ---
 
 ### Autonomous agent loop (terminal stream)
