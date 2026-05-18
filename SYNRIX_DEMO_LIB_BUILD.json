@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0-go-live",
+  "arch": "linux-aarch64",
+  "built_utc": "2026-05-18T20:27:04Z",
+  "source": "proprietary — not in this repository",
+  "libs": {
+    "libsynrix.so":                "b1d48acdbaed877e3d90596e75b115694cf07f97ff5ac5d4136502195d442846",
+    "libaion_semantic_index.so":   "5af3bdd8f4b86e2eb37c1efb95ef484b383179eabfbd831acdc32ebfb9ef5588",
+    "liblattice_expert_train.so":  "4649ef77f032d739c8d95f1272f675cde51ab158750e3aff1f3d00a0c4bae3e2"
+  }
+}
