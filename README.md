@@ -51,6 +51,35 @@ Canonical gate path: VERIFIED on this hardware.
 
 Throughput numbers are measured live on your hardware and will vary. See `docs/BENCHMARK_RECEIPTS.md` for reference numbers from the Jetson Orin Nano.
 
+### Interactive web demo (live anomaly detection)
+
+A browser-based demo where you send different types of sensor readings and watch the
+system analyze each one through three independent detection layers in real time.
+
+```bash
+# Bare-metal (requires make setup + make setup-corpus first)
+make run-interactive
+# Then open: http://localhost:5050
+
+# Docker
+docker run --rm -p 5050:5050 synrix-gate python3 scripts/demo_interactive.py
+# Then open: http://localhost:5050
+```
+
+Three buttons let you send:
+- **Normal Bearing** — healthy vibration signal from an industrial motor
+- **Bearing Fault** — inner race crack (still a bearing signal, correctly handled)
+- **Silicon PMU** — CPU performance counters (wrong domain entirely)
+
+The bearing readings show all green — high similarity to the 94,795-vector corpus,
+expected routing class, gate agrees. The PMU reading triggers all three layers:
+similarity collapses to ~0.098, route changes to a different execution class, and
+the 11 KB learned model — trained only on bearing data — disagrees with the teacher.
+
+Startup takes ~15 seconds while 94,795 vectors are loaded into AION512.
+
+---
+
 ### End-to-end pipeline expected output
 
 ```

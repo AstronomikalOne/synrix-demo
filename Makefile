@@ -1,4 +1,4 @@
-.PHONY: build run run-stress run-expert run-fresh setup setup-corpus
+.PHONY: build run run-stress run-expert run-fresh run-interactive setup setup-corpus
 
 # ── Docker path (recommended) ─────────────────────────────────────────────────
 build:
@@ -32,3 +32,8 @@ run-expert:
 
 run-fresh:
 	docker run --rm synrix-gate python3 scripts/demo_synrix_gate.py --train-fresh
+
+# Interactive web demo — three-layer live detection (bare-metal only; requires make setup + make setup-corpus)
+# Open http://localhost:5050 after running.
+run-interactive:
+	PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_interactive.py
