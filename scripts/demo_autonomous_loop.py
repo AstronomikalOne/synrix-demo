@@ -310,7 +310,7 @@ def main() -> None:
             print(f"  Loading pre-built search index...", end="", flush=True)
             t0_ivf = time.perf_counter()
             rc = _aion.semantic_vector_indexing_system_open_ivf_paged(
-                _aion_buf, str(ivfp_path).encode())
+                    _aion_buf, str(ivfp_path).encode())
             open_ms = (time.perf_counter() - t0_ivf) * 1000
             if rc != 0:
                 print(f"[ERROR] open_ivf_paged failed: rc={rc}")
