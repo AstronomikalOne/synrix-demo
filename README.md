@@ -1,6 +1,8 @@
-# Synrix — Public Reproducibility Artifact
+# Synrix — Edge Inference Demo
 
-Behavioral equivalence gate + router throughput demo for the Synrix edge inference stack.
+Universal anomaly detection that doesn't require knowing what anomalies look like — only what normal looks like. Everything else gets flagged automatically, across four independent layers, in microseconds, on a $400 edge device. No cloud required.
+
+Includes a behavioral equivalence gate, router throughput benchmark, and interactive web demo.
 
 ## Quick start
 
@@ -27,10 +29,6 @@ docker build -t synrix-gate .
 **Step 3 — run:**
 
 ```bash
-# Linux / macOS
-docker run --rm synrix-gate
-
-# Windows
 docker run --rm synrix-gate
 ```
 
