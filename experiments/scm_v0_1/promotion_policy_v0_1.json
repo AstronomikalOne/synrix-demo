@@ -1,0 +1,32 @@
+{
+  "name": "scm_router_promotion_policy_v0_1",
+  "min_metrics": {
+    "overall_pass_rate": 0.95,
+    "route_accuracy": 0.95,
+    "query_count_accuracy": 0.95,
+    "writeback_count_accuracy": 1.0
+  },
+  "tier_min_metrics": {
+    "easy": {
+      "overall_pass_rate": 1.0
+    },
+    "ambiguous": {
+      "overall_pass_rate": 0.9
+    },
+    "adversarial": {
+      "overall_pass_rate": 0.8
+    }
+  },
+  "drift_guard": {
+    "max_tier_share_delta": 0.25,
+    "max_route_share_delta": 0.25
+  },
+  "eval_set_parity": {
+    "require_same_fixture_path": true,
+    "require_same_fixture_version": true,
+    "require_same_case_count": true,
+    "require_same_case_ids": true
+  },
+  "no_regression_against_baseline": true,
+  "max_regression_tolerance": 0.0
+}

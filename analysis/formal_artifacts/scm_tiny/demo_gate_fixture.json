@@ -1,0 +1,336 @@
+{
+  "version": "1.0",
+  "description": "Demo gate packets \u2014 4 per domain, drawn from training-distribution JSONL",
+  "gates": {
+    "Gate 1 (UNSW-domain)": [
+      {
+        "goal": "ingest_system_log",
+        "query": "[unsw_nb15] flow proto=tcp; service=-; state=FIN; attack_cat=Exploits; label=1",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [
+          {
+            "channel": "system_log",
+            "level": "ERROR",
+            "message": "flow proto=tcp; service=-; state=FIN; attack_cat=Exploits; label=1",
+            "logger": "unsw_nb15",
+            "ts": 1777670560.6006503,
+            "extra": {
+              "dataset": "unsw_nb15",
+              "attack_cat": "Exploits",
+              "proto": "tcp",
+              "service": "-"
+            }
+          }
+        ],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      },
+      {
+        "goal": "ingest_system_log",
+        "query": "[unsw_nb15] flow proto=tcp; service=http; state=FIN; attack_cat=Exploits; label=1",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [
+          {
+            "channel": "system_log",
+            "level": "ERROR",
+            "message": "flow proto=tcp; service=http; state=FIN; attack_cat=Exploits; label=1",
+            "logger": "unsw_nb15",
+            "ts": 1777670560.6007507,
+            "extra": {
+              "dataset": "unsw_nb15",
+              "attack_cat": "Exploits",
+              "proto": "tcp",
+              "service": "http"
+            }
+          }
+        ],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      },
+      {
+        "goal": "ingest_system_log",
+        "query": "[unsw_nb15] flow proto=unas; service=-; state=INT; attack_cat=Exploits; label=1",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [
+          {
+            "channel": "system_log",
+            "level": "ERROR",
+            "message": "flow proto=unas; service=-; state=INT; attack_cat=Exploits; label=1",
+            "logger": "unsw_nb15",
+            "ts": 1777670560.6008,
+            "extra": {
+              "dataset": "unsw_nb15",
+              "attack_cat": "Exploits",
+              "proto": "unas",
+              "service": "-"
+            }
+          }
+        ],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      },
+      {
+        "goal": "ingest_system_log",
+        "query": "[unsw_nb15] flow proto=unas; service=-; state=INT; attack_cat=Exploits; label=1",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [
+          {
+            "channel": "system_log",
+            "level": "ERROR",
+            "message": "flow proto=unas; service=-; state=INT; attack_cat=Exploits; label=1",
+            "logger": "unsw_nb15",
+            "ts": 1777670560.6008513,
+            "extra": {
+              "dataset": "unsw_nb15",
+              "attack_cat": "Exploits",
+              "proto": "unas",
+              "service": "-"
+            }
+          }
+        ],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      }
+    ],
+    "Gate 2 (CWRU-domain)": [
+      {
+        "goal": "ingest_machine_state",
+        "query": "CWRU bearing record rpm_dir=1730 RPM file=1730_B_14_DE12.npz condition=fault; DE rms=0.133694 peak=1.98918 (first 122136 samples); FE rms=0.131372 peak=0.647593 (first 122136 samples)",
+        "active_state": [
+          {
+            "kind": "sensor",
+            "metric": "cwru_de_rms",
+            "value": 0.13369434739794456,
+            "unit": "g",
+            "device_id": "cwru:1730 RPM:1730_B_14_DE12",
+            "ts": 1777682078.4783828,
+            "severity": "alarm"
+          }
+        ],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      },
+      {
+        "goal": "ingest_machine_state",
+        "query": "CWRU bearing record rpm_dir=1730 RPM file=1730_B_14_DE48.npz condition=fault; DE rms=0.179838 peak=2.52654 (first 131072 samples); FE rms=0.125945 peak=0.782987 (first 131072 samples)",
+        "active_state": [
+          {
+            "kind": "sensor",
+            "metric": "cwru_de_rms",
+            "value": 0.17983811429569813,
+            "unit": "g",
+            "device_id": "cwru:1730 RPM:1730_B_14_DE48",
+            "ts": 1777682078.5039442,
+            "severity": "alarm"
+          }
+        ],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      },
+      {
+        "goal": "ingest_machine_state",
+        "query": "CWRU bearing record rpm_dir=1730 RPM file=1730_B_14_FE.npz condition=fault; DE rms=0.158246 peak=1.56181 (first 121168 samples); FE rms=0.210464 peak=2.65318 (first 121168 samples)",
+        "active_state": [
+          {
+            "kind": "sensor",
+            "metric": "cwru_de_rms",
+            "value": 0.15824556460567207,
+            "unit": "g",
+            "device_id": "cwru:1730 RPM:1730_B_14_FE",
+            "ts": 1777682078.5106983,
+            "severity": "alarm"
+          }
+        ],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      },
+      {
+        "goal": "ingest_machine_state",
+        "query": "CWRU bearing record rpm_dir=1730 RPM file=1730_B_21_DE12.npz condition=fault; DE rms=0.117965 peak=0.57632 (first 122136 samples); FE rms=0.0985284 peak=0.406595 (first 122136 samples)",
+        "active_state": [
+          {
+            "kind": "sensor",
+            "metric": "cwru_de_rms",
+            "value": 0.1179645782406605,
+            "unit": "g",
+            "device_id": "cwru:1730 RPM:1730_B_21_DE12",
+            "ts": 1777682078.5171907,
+            "severity": "alarm"
+          }
+        ],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "TASK",
+          "EVENT"
+        ]
+      }
+    ],
+    "Gate 3 (WAVE silicon)": [
+      {
+        "goal": "wave_selection",
+        "query": "memory_hot_context_sensitive",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "WAVE_0x"
+        ],
+        "wave_goal_metrics": {
+          "iso": 3.0,
+          "dep": 11.0,
+          "indep": 11.0,
+          "tput": 2.0,
+          "load": 3.0,
+          "cross": 3.0,
+          "branch": 3.0,
+          "cache": 110.0,
+          "tlb": 109.0,
+          "decode": 4.0,
+          "mispred": 0.0,
+          "ltr": 5.5,
+          "cs": 55.0,
+          "mp": 1.0
+        }
+      },
+      {
+        "goal": "wave_selection",
+        "query": "memory_hot_context_sensitive",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "WAVE_0x"
+        ],
+        "wave_goal_metrics": {
+          "iso": 3.0,
+          "dep": 11.0,
+          "indep": 3.0,
+          "tput": 0.0,
+          "load": 3.0,
+          "cross": 11.0,
+          "branch": 5.0,
+          "cache": 116.0,
+          "tlb": 107.0,
+          "decode": 4.0,
+          "mispred": 0.0,
+          "ltr": 18.333,
+          "cs": 38.667,
+          "mp": 1.0
+        }
+      },
+      {
+        "goal": "wave_selection",
+        "query": "memory_hot_context_sensitive",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "WAVE_0x"
+        ],
+        "wave_goal_metrics": {
+          "iso": 3.0,
+          "dep": 3.0,
+          "indep": 3.0,
+          "tput": 0.0,
+          "load": 3.0,
+          "cross": 3.0,
+          "branch": 3.0,
+          "cache": 111.0,
+          "tlb": 110.0,
+          "decode": 4.0,
+          "mispred": 0.0,
+          "ltr": 5.0,
+          "cs": 37.0,
+          "mp": 1.0
+        }
+      },
+      {
+        "goal": "wave_selection",
+        "query": "memory_hot_context_sensitive",
+        "active_state": [],
+        "retrieved_nodes": [],
+        "graph_edges": [],
+        "recent_events": [],
+        "constraints": [],
+        "available_tools": [],
+        "available_memory_types": [
+          "WAVE_0x"
+        ],
+        "wave_goal_metrics": {
+          "iso": 3.0,
+          "dep": 4.0,
+          "indep": 11.0,
+          "tput": 1.0,
+          "load": 3.0,
+          "cross": 3.0,
+          "branch": 3.0,
+          "cache": 111.0,
+          "tlb": 108.0,
+          "decode": 4.0,
+          "mispred": 0.0,
+          "ltr": 3.333,
+          "cs": 111.0,
+          "mp": 1.0
+        }
+      }
+    ]
+  }
+}

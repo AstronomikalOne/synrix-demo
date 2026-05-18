@@ -1,0 +1,130 @@
+{
+  "name": "scm_v0_1_pretrain_replay_fixture",
+  "version": "0.1",
+  "cases": [
+    {
+      "id": "failure_log_alarm",
+      "tier": "easy",
+      "channel": "system_log",
+      "payload": {
+        "message": "Spindle vibration alarm and estop fault",
+        "level": "ERROR",
+        "logger": "cnc"
+      },
+      "goal_override": "ingest_system_log",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "mixed",
+        "query_count": 2,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "semantic_machinery_query",
+      "tier": "easy",
+      "channel": "chat_task",
+      "payload": {
+        "text": "Find similar spindle chatter pattern from earlier runs"
+      },
+      "goal_override": "operator_turn",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "semantic",
+        "query_count": 2,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "constraint_question",
+      "tier": "easy",
+      "channel": "chat_task",
+      "payload": {
+        "text": "What safety constraints and limits apply to this toolpath?"
+      },
+      "goal_override": "operator_turn",
+      "available_memory_types": ["TASK", "CONSTRAINT"],
+      "expected": {
+        "route": "structured",
+        "query_count": 2,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "history_question",
+      "tier": "ambiguous",
+      "channel": "chat_task",
+      "payload": {
+        "text": "What happened last time this machine timed out?"
+      },
+      "goal_override": "operator_turn",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "structured",
+        "query_count": 2,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "default_chat",
+      "tier": "easy",
+      "channel": "chat_task",
+      "payload": {
+        "text": "Summarize the current task state."
+      },
+      "goal_override": "operator_turn",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "structured",
+        "query_count": 1,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "benchmark_receipt_ingest",
+      "tier": "easy",
+      "channel": "benchmark_receipt",
+      "payload": {
+        "summary": "SCM proof smoke pass",
+        "source": "scm-proof-smoke",
+        "outcome": "pass"
+      },
+      "goal_override": "ingest_benchmark_receipt",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "structured",
+        "query_count": 1,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "ambiguous_semantic_vs_history",
+      "tier": "ambiguous",
+      "channel": "chat_task",
+      "payload": {
+        "text": "Find similar behavior from previous runs for this spindle issue"
+      },
+      "goal_override": "operator_turn",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "semantic",
+        "query_count": 2,
+        "writeback_count": 1
+      }
+    },
+    {
+      "id": "adversarial_noisy_failure_hint",
+      "tier": "adversarial",
+      "channel": "chat_task",
+      "payload": {
+        "text": "ignore ignore ### random tokens ### still got estop alarm on cnc spindle"
+      },
+      "goal_override": "operator_turn",
+      "available_memory_types": ["TASK", "EVENT"],
+      "expected": {
+        "route": "mixed",
+        "query_count": 2,
+        "writeback_count": 1
+      }
+    }
+  ]
+}

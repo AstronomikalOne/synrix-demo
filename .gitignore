@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+analysis/cwru_corpus.npz
+analysis/cwru_raw/
+analysis/cwru_ivf.ivfp
+build/
