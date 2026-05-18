@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim
 
 LABEL description="Synrix edge inference — behavioral equivalence gate + router benchmark"
@@ -5,6 +6,7 @@ LABEL version="1.0"
 
 WORKDIR /app
 
+COPY scripts/_utils.py                  scripts/_utils.py
 COPY scripts/demo_synrix_gate.py        scripts/demo_synrix_gate.py
 COPY scripts/demo_e2e_pipeline.py       scripts/demo_e2e_pipeline.py
 COPY scripts/demo_interactive.py        scripts/demo_interactive.py
@@ -56,11 +58,13 @@ RUN test -f build/libsynrix.so && \
 # (avoids network downloads that can fail mid-build and produce a partial corpus).
 # If neither file is present in the build context, prepare_cwru_corpus.py downloads
 # the raw .mat files from the CWRU site and builds from scratch.
-COPY analysis/cwru_corpus.npz  analysis/cwru_corpus.npz
-COPY analysis/cwru_ivf.ivfp    analysis/cwru_ivf.ivfp
-
-RUN if [ -f analysis/cwru_corpus.npz ] && [ -f analysis/cwru_ivf.ivfp ]; then \
-        echo "  CWRU corpus present — skipping download"; \
+# Uses BuildKit bind-mount so the COPY is optional — fresh clones without corpus still build.
+RUN --mount=type=bind,source=analysis,target=/mnt/ctx_analysis \
+    mkdir -p analysis && \
+    if [ -f /mnt/ctx_analysis/cwru_corpus.npz ] && [ -f /mnt/ctx_analysis/cwru_ivf.ivfp ]; then \
+        cp /mnt/ctx_analysis/cwru_corpus.npz analysis/cwru_corpus.npz && \
+        cp /mnt/ctx_analysis/cwru_ivf.ivfp   analysis/cwru_ivf.ivfp && \
+        echo "  CWRU corpus present in build context — skipping download"; \
     else \
         PYTHONPATH=/app SYNRIX_LIB_PATH=/app/build python3 scripts/prepare_cwru_corpus.py; \
     fi

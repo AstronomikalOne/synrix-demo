@@ -1,4 +1,5 @@
-.PHONY: build run run-stress run-expert run-fresh run-interactive setup setup-corpus
+.PHONY: build run run-stress run-expert run-fresh run-interactive setup setup-corpus \
+  demo-screen-record
 
 # ── Docker path (recommended) ─────────────────────────────────────────────────
 build:
@@ -37,3 +38,7 @@ run-fresh:
 # Open http://localhost:5050 after running.
 run-interactive:
 	PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_interactive.py
+
+# Paced terminal output for screen recording (gate + e2e). See docs/DEMO_SPLIT.md
+demo-screen-record:
+	bash scripts/demo_screen_record.sh

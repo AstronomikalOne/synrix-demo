@@ -4,3 +4,7 @@ analysis/cwru_corpus.npz
 analysis/cwru_raw/
 analysis/cwru_ivf.ivfp
 build/
+media/*.mp4
+media/*.mov
+media/*.webm
+!media/README.md

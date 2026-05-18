@@ -9,7 +9,7 @@ Pipeline:
   3. Triple behavioral equivalence gate (12 packets, 3 domains, teacher vs student)
   4. Router inference throughput benchmark (rules / gated / shadow)
 
-Run from NebulOS-Scaffolding/:
+Run from synrix-demo/:
   PYTHONPATH=. python3 scripts/demo_synrix_gate.py
   PYTHONPATH=. python3 scripts/demo_synrix_gate.py --train-fresh   # show C trainer
 
@@ -158,6 +158,7 @@ if args.train_fresh:
     _tmp_npz = Path(_tmp.name)
     art_fresh.save(_tmp_npz)
     _npz_path = _tmp_npz
+    artifact_kb = _CANONICAL_NPZ.stat().st_size // 1024
     _info("")
     _info("Gate uses canonical artifact (trained on full corpus) for consistent result.")
 
@@ -240,16 +241,9 @@ symbol = "✓" if gates_passed == 3 else "✗"
 print(f"\n  Triple gate result: {gate_str}  {symbol}")
 if gates_passed == 3:
     print()
-    print("  What this means:")
-    print(f"    An {artifact_kb} KB file — smaller than a JPEG thumbnail — just made 12 consecutive")
-    print("    correct routing decisions across three completely unrelated engineering")
-    print("    domains: network intrusion traffic, rotating machinery fault signals,")
-    print("    and silicon chip performance counters.")
-    print()
-    print("    It was trained entirely in C with no Python training loop, no GPU, and")
-    print("    no transformer. It matched a hand-written expert rule system on every")
-    print("    single packet. 1.000 means zero misses — not 'pretty good', literally")
-    print("    every prediction was correct.")
+    print(f"  An {artifact_kb} KB artifact matched the deterministic routing authority across")
+    print("  12 consecutive packets spanning three unrelated engineering domains:")
+    print("  network intrusion telemetry, bearing fault signals, and silicon PMU counters.")
 
 # ── Step 3b: Cache-pressure stress (optional) ─────────────────────────────────
 
@@ -350,11 +344,8 @@ print()
 if gates_passed == 3:
     print("  Canonical gate path: VERIFIED on this hardware.")
     print()
-    print("  What this demonstrates:")
-    print(f"    An {artifact_kb} KB model trained in C can shadow and gate a deterministic rule")
-    print("    engine across heterogeneous real-world domains with zero errors.")
-    print("    It fits entirely in CPU cache. It runs on embedded ARM hardware.")
-    print("    It was not individually tuned per domain.")
+    print(f"  An {artifact_kb} KB C-trained artifact constrains behavioral drift in a deterministic")
+    print("  rule engine across heterogeneous domains — without per-domain tuning.")
     print()
     print("  This run (measured on this hardware):")
     print(f"    Triple gate      :  1.0 / 1.0 / 1.0  (UNSW + CWRU + WAVE silicon)")

@@ -33,6 +33,8 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from scripts._utils import encode_512, AION_VEC_DIM
+
 from experiments.scm_v0_1.packets import SCMInputPacket
 from experiments.scm_v0_1.router_rules import RulesScmRouter
 from experiments.scm_v0_1.contracts import ExecutionContract
@@ -52,9 +54,7 @@ _CWRU_NPZ     = Path(os.environ.get(
 ))
 _CORPUS_NPZ   = _ROOT / "analysis/cwru_corpus.npz"
 
-AION_VEC_DIM = 512
 _LATTICE_BUF_SIZE  = 1024 * 1024   # 1 MB — enough for persistent_lattice_t
-_LATTICE_NODE_SIZE = 1216           # sizeof(lattice_node_t) — 19 × 64-byte cache lines
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -68,16 +68,6 @@ def _info(msg: str) -> None: print(f"  {msg}")
 def _warn(msg: str) -> None: print(f"  [WARN] {msg}")
 def _fail(msg: str) -> None: print(f"  [FAIL] {msg}")
 
-def _encode_512(feat270: np.ndarray) -> np.ndarray:
-    """Tile 270-dim feature vector to 512 floats and L2-normalise."""
-    v = np.zeros(AION_VEC_DIM, dtype=np.float32)
-    reps = AION_VEC_DIM // len(feat270)
-    rem  = AION_VEC_DIM  % len(feat270)
-    v[:reps * len(feat270)] = np.tile(feat270, reps)
-    if rem:
-        v[reps * len(feat270):] = feat270[:rem]
-    n = np.linalg.norm(v)
-    return (v / n) if n > 0 else v
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 
@@ -344,9 +334,9 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
     # Encode the WAVE reading using the same HRR encoder as the corpus.
     # The WAVE packet featurizer produces a different feature space — we use
-    # _encode_512 (tiling) as a neutral projection to compare in the same 512-d space.
+    # encode_512 (tiling) as a neutral projection to compare in the same 512-d space.
     wave_feat = featurize_packets([wave_pkt])[0]
-    wave_vec  = _encode_512(wave_feat)
+    wave_vec  = encode_512(wave_feat)
 
     q = _AionQuery()
     q.max_results            = 3

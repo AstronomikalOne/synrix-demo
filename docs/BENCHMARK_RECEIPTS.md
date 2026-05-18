@@ -63,7 +63,7 @@ Per-domain specialists trained on 8,000 disjoint rows, gated on 2,000 disjoint r
 
 ## AION512 Semantic Index
 
-**Setup:** 41,841 WAVE vectors, 512-float L2-normalized embeddings, NEON SDOT kernel.
+**Setup:** 94,795 CWRU bearing vectors (512-float L2-normalized embeddings, NEON SDOT kernel). The private WAVE corpus (41,841 vectors) produces similar QPS at this scale.
 
 | Metric | Value |
 |---|---|

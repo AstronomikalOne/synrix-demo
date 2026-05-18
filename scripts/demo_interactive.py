@@ -34,6 +34,8 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from scripts._utils import encode_512, AION_VEC_DIM
+
 from experiments.scm_v0_1.packets import SCMInputPacket
 from experiments.scm_v0_1.router_rules import RulesScmRouter
 from experiments.scm_v0_1.contracts import ExecutionContract
@@ -53,22 +55,11 @@ _CWRU_NPZ    = Path(os.environ.get(
 ))
 _CORPUS_NPZ  = _ROOT / "analysis/cwru_corpus.npz"
 
-AION_VEC_DIM              = 512
 PORT                      = 5050
 _LATTICE_BUF_SIZE         = 1024 * 1024
 _LATTICE_NODE_TYPE_OBS    = 3
 
 # -- Helpers --------------------------------------------------------------------
-
-def _encode_512(feat: np.ndarray) -> np.ndarray:
-    v    = np.zeros(AION_VEC_DIM, dtype=np.float32)
-    reps = AION_VEC_DIM // len(feat)
-    rem  = AION_VEC_DIM  % len(feat)
-    v[:reps * len(feat)] = np.tile(feat, reps)
-    if rem:
-        v[reps * len(feat):] = feat[:rem]
-    n = np.linalg.norm(v)
-    return (v / n) if n > 0 else v
 
 # -- Load native libraries -------------------------------------------------------
 
@@ -311,7 +302,7 @@ def analyze_reading(rtype: str) -> dict:
 
     if is_pmu:
         feat     = featurize_packets([wave_pkt])
-        aion_vec = _encode_512(feat[0])
+        aion_vec = encode_512(feat[0])
         pkt      = wave_pkt
     else:
         aion_vec = _REPR_VEC[rtype]

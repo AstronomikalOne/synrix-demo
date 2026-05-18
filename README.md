@@ -4,6 +4,15 @@ A reproducibility artifact for domain-bound anomaly detection on embedded hardwa
 
 Includes a behavioral equivalence gate, router throughput benchmark, and interactive web demo.
 
+## Demo video (two parts)
+
+| Part | Where to record | In this repo? |
+|------|-----------------|---------------|
+| **A — Edge stack** (gate, e2e, cross-domain catch) | **This repo** — `make demo-screen-record` | Yes — fully reproducible |
+| **B — IP stack** (WAVE 41k, phi encoders, Sentry/harness hotswap) | Private `aion-omega` only | Video + log in [`media/`](media/README.md); **no C source** |
+
+See [`docs/DEMO_SPLIT.md`](docs/DEMO_SPLIT.md) and [`media/README.md`](media/README.md) for file names and upload notes.
+
 ## Quick start
 
 ### Docker (recommended)
