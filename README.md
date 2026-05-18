@@ -1,6 +1,6 @@
 # Synrix — Edge Anomaly Routing Demo
 
-A reproducibility artifact for domain-bound anomaly detection on embedded hardware: public bearing data corpus, AION512 vector retrieval, deterministic routing, and an 11 KB behavioral gate. Runs on a $400 Jetson Orin Nano with no cloud dependency.
+A reproducibility artifact for domain-bound anomaly detection on embedded hardware: public bearing data corpus, AION512 vector retrieval, deterministic routing, and an 11 KB behavioral gate. Runs on a $250 Jetson Orin Nano with no cloud dependency.
 
 Includes a behavioral equivalence gate, router throughput benchmark, and interactive web demo.
 
