@@ -118,12 +118,17 @@ A terminal demo showing Synrix as an agent substrate — streams 1000 events thr
 docker run --rm -v $(pwd)/analysis:/app/analysis synrix-gate \
   python3 scripts/demo_autonomous_loop.py --count 1000
 
-# Docker — IVF retrieval (~1.5ms/query after ~2min IVF build)
+# Docker — paged H-IVF retrieval (~1.4ms/query, instant startup from pre-built index)
+docker run --rm -v $(pwd)/analysis:/app/analysis synrix-gate \
+  python3 scripts/demo_autonomous_loop.py --count 1000 --hivf
+
+# Docker — flat IVF retrieval (~1.5ms/query after ~2min IVF build)
 docker run --rm -v $(pwd)/analysis:/app/analysis synrix-gate \
   python3 scripts/demo_autonomous_loop.py --count 1000 --ivf
 
 # Bare-metal
 PYTHONPATH=. python3 scripts/demo_autonomous_loop.py --count 1000
+PYTHONPATH=. python3 scripts/demo_autonomous_loop.py --count 1000 --hivf
 PYTHONPATH=. python3 scripts/demo_autonomous_loop.py --count 1000 --ivf
 ```
 
@@ -145,7 +150,11 @@ Expected output (bruteforce):
   p95 latency : 7129us
 ```
 
-With `--ivf`: p50 drops to ~1.5ms after a ~2-minute IVF build (320 k-means clusters, 20 probes). The bruteforce run requires no build step and starts immediately.
+With `--hivf`: p50 drops to ~1.4ms with **instant startup** — opens the pre-built paged H-IVF index
+(`cwru_ivf.ivfp`, included in the Docker image) in <1ms; no K-means build required. Probes all
+16 branches, top 8 leaves per branch (128 of 320 total leaf buckets per query).
+
+With `--ivf`: p50 drops to ~1.5ms after a ~2-minute K-means build (320 clusters, 20 probes).
 
 ---
 

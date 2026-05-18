@@ -50,6 +50,7 @@ from experiments.scm_v0_1.scm_tiny.templates import template_id_from_teacher, te
 _BUILD             = Path(os.environ.get("SYNRIX_LIB_PATH", str(_ROOT / "build")))
 _GATE_FIX          = _ROOT / "analysis/formal_artifacts/scm_tiny/demo_gate_fixture.json"
 _CORPUS_NPZ_DEFAULT = _ROOT / "analysis/cwru_corpus.npz"
+_IVFP_DEFAULT       = _ROOT / "analysis/cwru_ivf.ivfp"
 _GATE_NPZ          = Path(os.environ.get(
     "SCM_TINY_NPZ_CWRU",
     str(_ROOT / "analysis/formal_artifacts/scm_tiny/scm_tiny_cwru_expert.npz")))
@@ -131,6 +132,14 @@ def _parse() -> argparse.Namespace:
                    help="number of IVF clusters to build")
     p.add_argument("--ivf-probe",    type=int, default=20,
                    help="number of IVF clusters to probe per query")
+    p.add_argument("--hivf",      action="store_true",
+                   help="open pre-built paged H-IVF index (instant startup, no K-means build)")
+    p.add_argument("--hivf-ivfp", type=str, default=None,
+                   help="path to pre-built .ivfp file (default: analysis/cwru_ivf.ivfp)")
+    p.add_argument("--hivf-probe-b1", type=int, default=16,
+                   help="H-IVF: number of branches to probe per query (default: all 16)")
+    p.add_argument("--hivf-probe-b2", type=int, default=8,
+                   help="H-IVF: number of leaves per branch to probe per query")
     return p.parse_args()
 
 
@@ -160,6 +169,8 @@ def main() -> None:
     print(f"  seed      : {args.seed}")
     if dry_run:
         print("  mode      : DRY-RUN -- native libraries bypassed (NumPy path)")
+    elif args.hivf:
+        print("  mode      : NATIVE -- libsynrix + libaion  [paged H-IVF]")
     else:
         print("  mode      : NATIVE -- libsynrix + libaion")
     print("=" * 68)
@@ -204,6 +215,9 @@ def main() -> None:
         _aion.semantic_vector_indexing_system_build_ivf.argtypes = [ctypes.c_void_p,
                                                                      ctypes.c_uint32,
                                                                      ctypes.c_uint32]
+        _aion.semantic_vector_indexing_system_open_ivf_paged.restype  = ctypes.c_int
+        _aion.semantic_vector_indexing_system_open_ivf_paged.argtypes = [ctypes.c_void_p,
+                                                                          ctypes.c_char_p]
         _aion.vector_similarity_query_sizeof.restype  = ctypes.c_size_t
         _aion.vector_similarity_query_sizeof.argtypes = []
         _aion.semantic_vector_indexing_system_search_similar.restype  = ctypes.c_int
@@ -294,6 +308,24 @@ def main() -> None:
                 sys.exit(1)
             print(f"[INIT]  IVF built in {ivf_ms:.0f}ms  ({args.ivf_clusters} clusters, probe={args.ivf_probe})", flush=True)
             print(f"[INIT]  Retrieval path: AION512 IVF (native libaion, n_probe={args.ivf_probe})", flush=True)
+        elif args.hivf:
+            ivfp_path = Path(args.hivf_ivfp) if args.hivf_ivfp else _IVFP_DEFAULT
+            if not ivfp_path.is_file():
+                print(f"[ERROR] Paged H-IVF file not found: {ivfp_path}")
+                print("        Run: make setup-corpus  (builds the file during corpus prep)")
+                sys.exit(1)
+            print(f"[INIT]  Opening paged H-IVF: {ivfp_path.name}", flush=True)
+            t0_ivf = time.perf_counter()
+            rc = _aion.semantic_vector_indexing_system_open_ivf_paged(
+                _aion_buf, str(ivfp_path).encode())
+            open_ms = (time.perf_counter() - t0_ivf) * 1000
+            if rc != 0:
+                print(f"[ERROR] open_ivf_paged failed: rc={rc}")
+                sys.exit(1)
+            print(f"[INIT]  Paged H-IVF loaded in {open_ms:.1f}ms  "
+                  f"(probe_b1={args.hivf_probe_b1}, probe_b2={args.hivf_probe_b2})", flush=True)
+            print(f"[INIT]  Retrieval path: AION512 paged H-IVF (native libaion, "
+                  f"probe={args.hivf_probe_b1}x{args.hivf_probe_b2})", flush=True)
         else:
             print(f"[INIT]  Retrieval path: AION512 bruteforce (native libaion)", flush=True)
     else:
@@ -365,15 +397,15 @@ def main() -> None:
         q.cluster_filter         = 0
         q.use_lsh                = False
         q.use_clustering         = False
-        q.use_aion512_bruteforce = True   # IVF path is inside this branch; bruteforce is fallback
+        q.use_aion512_bruteforce = True   # IVF/H-IVF path is inside this branch; bruteforce is fallback
         q.query_aion512_f32      = vec.ctypes.data
         q.use_aion512_ivf        = args.ivf
         q.aion512_ivf_n_probe    = args.ivf_probe if args.ivf else 0
         q.use_float32_rerank     = False
         q.rerank_oversample_factor = 0
-        q.use_aion512_hivf       = False
-        q.aion512_hivf_probe_b1  = 0
-        q.aion512_hivf_probe_b2  = 0
+        q.use_aion512_hivf       = args.hivf
+        q.aion512_hivf_probe_b1  = args.hivf_probe_b1 if args.hivf else 0
+        q.aion512_hivf_probe_b2  = args.hivf_probe_b2 if args.hivf else 0
         res   = (_AionResult * 1)()
         cnt   = ctypes.c_uint32(0)
         rc    = _aion.semantic_vector_indexing_system_search_similar(
@@ -496,8 +528,13 @@ def main() -> None:
     print(f"  p95 latency : {p95}us")
     if not dry_run:
         print(f"  WAL status  : committed  (fdatasync verified)")
-        retrieval_label = (f"AION512 IVF (native libaion, n_probe={args.ivf_probe})"
-                           if args.ivf else "AION512 bruteforce (native libaion)")
+        if args.hivf:
+            retrieval_label = (f"AION512 paged H-IVF (native libaion, "
+                               f"probe={args.hivf_probe_b1}x{args.hivf_probe_b2})")
+        elif args.ivf:
+            retrieval_label = f"AION512 IVF (native libaion, n_probe={args.ivf_probe})"
+        else:
+            retrieval_label = "AION512 bruteforce (native libaion)"
         print(f"  Retrieval   : {retrieval_label}")
     else:
         print(f"  WAL status  : n/a  [DRY-RUN]")
