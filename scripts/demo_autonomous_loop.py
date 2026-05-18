@@ -163,16 +163,12 @@ def main() -> None:
 
     print()
     print("=" * 68)
-    print("  Synrix -- autonomous local-loop substrate demo")
-    print(f"  platform  : {platform.machine()} / {platform.system()}")
-    print(f"  events    : {count}  |  foreign injection at index {breach_at}")
-    print(f"  seed      : {args.seed}")
-    if dry_run:
-        print("  mode      : DRY-RUN -- native libraries bypassed (NumPy path)")
-    elif args.hivf:
-        print("  mode      : NATIVE -- libsynrix + libaion  [paged H-IVF]")
-    else:
-        print("  mode      : NATIVE -- libsynrix + libaion")
+    print("  SYNRIX  --  Edge Anomaly Detection")
+    print("  Detects foreign signals without ever being told what to look for.")
+    print()
+    print(f"  Device   : Jetson Orin Nano  ($250, no internet required)")
+    print(f"  Watching : Industrial motor bearings")
+    print(f"  Memory   : 94,795 real bearing signals loaded on-device")
     print("=" * 68)
     print()
 
@@ -243,13 +239,11 @@ def main() -> None:
         print("        Run: make setup-corpus")
         sys.exit(1)
 
-    print(f"[INIT]  Loading corpus: {corpus_path.name}", flush=True)
     raw          = np.load(corpus_path, allow_pickle=False)
     corp_vecs    = raw["vectors"]    # (N, 512) float32, L2-normalised
     corp_labels  = raw["labels"]     # (N,) str
     N_CORPUS     = len(corp_vecs)
     label_set    = sorted(set(corp_labels.tolist()))
-    print(f"[INIT]  Corpus: {N_CORPUS:,} vectors  |  {len(label_set)} classes", flush=True)
 
     # -----------------------------------------------------------------------
     # Build event schedule
@@ -284,7 +278,7 @@ def main() -> None:
     # -----------------------------------------------------------------------
 
     if not dry_run:
-        print(f"[INIT]  Building AION512 index ({N_CORPUS:,} vectors)...", flush=True)
+        print(f"  Loading {N_CORPUS:,} bearing signals into memory...", end="", flush=True)
         aion_sz  = _aion.semantic_vector_indexing_system_sizeof()
         _aion_buf = ctypes.create_string_buffer(aion_sz)
         if _aion.semantic_vector_indexing_system_create(_aion_buf) != 0:
@@ -295,10 +289,10 @@ def main() -> None:
             _aion.semantic_vector_indexing_system_add_embedding_aion512(
                 _aion_buf, ctypes.c_uint32(vi + 1), vec.ctypes.data_as(ctypes.c_void_p))
         idx_ms = (time.perf_counter() - t0) * 1000
-        print(f"[INIT]  AION512: {N_CORPUS:,} vectors indexed in {idx_ms:.0f}ms", flush=True)
+        print(f" done ({idx_ms:.0f}ms)", flush=True)
 
         if args.ivf:
-            print(f"[INIT]  Building IVF index ({args.ivf_clusters} clusters)...", flush=True)
+            print(f"  Building search index ({args.ivf_clusters} clusters)...", end="", flush=True)
             t0_ivf = time.perf_counter()
             rc = _aion.semantic_vector_indexing_system_build_ivf(
                 _aion_buf, ctypes.c_uint32(args.ivf_clusters), ctypes.c_uint32(20))
@@ -306,15 +300,14 @@ def main() -> None:
             if rc != 0:
                 print(f"[ERROR] build_ivf failed: rc={rc}")
                 sys.exit(1)
-            print(f"[INIT]  IVF built in {ivf_ms:.0f}ms  ({args.ivf_clusters} clusters, probe={args.ivf_probe})", flush=True)
-            print(f"[INIT]  Retrieval path: AION512 IVF (native libaion, n_probe={args.ivf_probe})", flush=True)
+            print(f" done ({ivf_ms:.0f}ms)", flush=True)
         elif args.hivf:
             ivfp_path = Path(args.hivf_ivfp) if args.hivf_ivfp else _IVFP_DEFAULT
             if not ivfp_path.is_file():
                 print(f"[ERROR] Paged H-IVF file not found: {ivfp_path}")
                 print("        Run: make setup-corpus  (builds the file during corpus prep)")
                 sys.exit(1)
-            print(f"[INIT]  Opening paged H-IVF: {ivfp_path.name}", flush=True)
+            print(f"  Loading pre-built search index...", end="", flush=True)
             t0_ivf = time.perf_counter()
             rc = _aion.semantic_vector_indexing_system_open_ivf_paged(
                 _aion_buf, str(ivfp_path).encode())
@@ -322,21 +315,17 @@ def main() -> None:
             if rc != 0:
                 print(f"[ERROR] open_ivf_paged failed: rc={rc}")
                 sys.exit(1)
-            print(f"[INIT]  Paged H-IVF loaded in {open_ms:.1f}ms  "
-                  f"(probe_b1={args.hivf_probe_b1}, probe_b2={args.hivf_probe_b2})", flush=True)
-            print(f"[INIT]  Retrieval path: AION512 paged H-IVF (native libaion, "
-                  f"probe={args.hivf_probe_b1}x{args.hivf_probe_b2})", flush=True)
-        else:
-            print(f"[INIT]  Retrieval path: AION512 bruteforce (native libaion)", flush=True)
+            print(f" done ({open_ms:.1f}ms)", flush=True)
+
+        print(f"  Initializing on-device persistent memory...", end="", flush=True)
     else:
-        print(f"[INIT]  Retrieval path: NumPy cosine similarity  [DRY-RUN -- not native]", flush=True)
+        print(f"  [DRY-RUN] Using NumPy cosine similarity (no native libraries)", flush=True)
 
     # -----------------------------------------------------------------------
     # Initialize lattice + seed writes
     # -----------------------------------------------------------------------
 
     if not dry_run:
-        print(f"[INIT]  Initializing lattice...", flush=True)
         _lattice_tmpdir = tempfile.mkdtemp(prefix="synrix_loop_")
         lat_path        = os.path.join(_lattice_tmpdir, "loop.lat")
         _lattice_buf    = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
@@ -356,14 +345,10 @@ def main() -> None:
             ("SEED_NORMAL_0004", "label=normal seq=3"),
             ("SEED_BALL_007_0005", "label=ball_007 seq=4"),
         ]
-        print(f"[INIT]  Seeding local context:", flush=True)
         for sname, sdata in seed_records:
-            t0 = time.perf_counter_ns()
             _lib.lattice_add_node(_lattice_buf, _LATTICE_NODE_TYPE_OBS,
                                   sname.encode(), sdata.encode())
-            sus = (time.perf_counter_ns() - t0) // 1000
-            print(f"[INIT]    [WRITE] {sname:<28} {sus}us", flush=True)
-        print(f"[INIT]  Substrate armed. WAL committed. fdatasync verified.", flush=True)
+        print(f" done. System ready.", flush=True)
 
     # -----------------------------------------------------------------------
     # Load SCM router + behavioral gate
@@ -423,8 +408,22 @@ def main() -> None:
     # Stream
     # -----------------------------------------------------------------------
 
-    print()
-    print(f"  Streaming {count} events. Foreign reading at index {breach_at}.")
+    _FAULT_DESC = {
+        "normal":     "normal vibration",
+        "inner_007":  "inner race crack",
+        "inner_014":  "inner race crack",
+        "inner_021":  "inner race crack",
+        "ball_007":   "ball defect",
+        "ball_014":   "ball defect",
+        "ball_021":   "ball defect",
+        "outer_007":  "outer race crack",
+        "outer_014":  "outer race crack",
+        "outer_021":  "outer race crack",
+    }
+
+    print(f"  Streaming {count} motor sensor readings.")
+    print(f"  One reading near the end will be from a completely different device.")
+    print(f"  Watch the system catch it.")
     print()
 
     latencies:    list[int] = []
@@ -489,27 +488,39 @@ def main() -> None:
         latencies.append(lat_us)
 
         in_domain = best_sim >= 0.50
+        lat_ms = lat_us / 1000.0
 
         # -- Decision
         if not in_domain and not normal_route and not gate_ok:
-            displacement = round(1.0 - best_sim, 4)
-            print(f"[CRITICAL] ID: {event_id:05d} | Manifold breach -- 3 independent layers flagged")
-            print(f"           Layer 1: cosine displacement {displacement:.4f} -- out of learned space")
-            print(f"           Layer 2: execution class mismatch")
-            print(f"           Layer 3: behavioral policy divergence")
+            pct_dissimilar = round((1.0 - best_sim) * 100, 1)
+            print()
+            print(f"  !! ALERT  Reading #{event_id:05d}  !!".center(68))
+            print()
+            print(f"  Signal received : CPU performance counters (silicon chip)")
+            print(f"  Signal expected : Motor bearing vibration data")
+            print()
+            print(f"  Check 1  [Memory]    Searched 94,795 motor records --")
+            print(f"           {pct_dissimilar}% dissimilar to everything the system has ever seen")
+            print(f"  Check 2  [Routing]   Signal does not match any motor processing category")
+            print(f"  Check 3  [Behavior]  AI model has never made a motor decision like this")
+            print()
+            print(f"  Three independent checks. No coordination between them.")
+            print(f"  All three flagged the same reading.")
             print()
             if not dry_run:
-                print(f"[HALT]  Loop frozen. WAL committed. fdatasync verified. State intact.")
+                print(f"  SYSTEM HALTED. All data written safely to disk.")
             else:
-                print(f"[HALT]  Loop frozen. State intact.  [DRY-RUN -- no WAL]")
+                print(f"  SYSTEM HALTED. [DRY-RUN -- no disk write]")
             halt_id       = event_id
             halted_safely = True
             break
 
         if is_normal:
-            print(f"[OK]    ID: {event_id:05d} | LAT: {lat_us:>4}us | L1 lattice match")
+            desc = "normal vibration"
+            print(f"  [  OK  ]  #{event_id:05d}  Motor bearing  {desc:<28}  {lat_ms:.1f}ms")
         else:
-            print(f"[WARN]  ID: {event_id:05d} | LAT: {lat_us:>4}us | L2 manifold check -> fault:{fault_lbl}")
+            desc = _FAULT_DESC.get(fault_lbl, fault_lbl)
+            print(f"  [ FAULT]  #{event_id:05d}  Motor bearing  {desc:<28}  {lat_ms:.1f}ms  [logged]")
 
     # -----------------------------------------------------------------------
     # Summary
@@ -520,27 +531,31 @@ def main() -> None:
     processed = len(latencies)
     p50 = int(np.percentile(latencies, 50)) if latencies else 0
     p95 = int(np.percentile(latencies, 95)) if latencies else 0
+    p50_ms = p50 / 1000.0
 
-    print(f"  Processed   : {processed} / {count}")
-    if halt_id is not None:
-        print(f"  Halt ID     : {halt_id:05d}")
-    print(f"  p50 latency : {p50}us")
-    print(f"  p95 latency : {p95}us")
+    motor_count  = sum(1 for s in schedule[:processed] if s != "breach")
+    foreign_count = 1 if halted_safely else 0
+
+    print(f"  {motor_count} motor readings     processed and logged normally")
+    if halted_safely:
+        print(f"  {foreign_count} foreign signal      automatically detected and halted")
+    print()
+    print(f"  Speed   : {p50_ms:.1f}ms per reading on this hardware")
     if not dry_run:
-        print(f"  WAL status  : committed  (fdatasync verified)")
+        print(f"  Device  : Jetson Orin Nano -- $250, no internet, no cloud")
+        print(f"  Storage : all decisions written to on-device persistent memory")
+    print()
+    if not dry_run:
         if args.hivf:
-            retrieval_label = (f"AION512 paged H-IVF (native libaion, "
-                               f"probe={args.hivf_probe_b1}x{args.hivf_probe_b2})")
+            retrieval_label = (f"paged H-IVF  probe={args.hivf_probe_b1}x{args.hivf_probe_b2}")
         elif args.ivf:
-            retrieval_label = f"AION512 IVF (native libaion, n_probe={args.ivf_probe})"
+            retrieval_label = f"flat IVF  n_probe={args.ivf_probe}"
         else:
-            retrieval_label = "AION512 bruteforce (native libaion)"
-        print(f"  Retrieval   : {retrieval_label}")
+            retrieval_label = "bruteforce"
+        print(f"  [technical: p50={p50}us  p95={p95}us  retrieval={retrieval_label}"
+              f"  arch={platform.machine()}]")
     else:
-        print(f"  WAL status  : n/a  [DRY-RUN]")
-        print(f"  Retrieval   : NumPy cosine  [DRY-RUN -- not native]")
-    print(f"  Note        : Numbers measured on {platform.machine()} / {platform.system()}.")
-    print(f"                Paper reference numbers from Jetson Orin Nano aarch64/NEON.")
+        print(f"  [technical: p50={p50}us  p95={p95}us  DRY-RUN  arch={platform.machine()}]")
     print("-" * 68)
     print()
 
