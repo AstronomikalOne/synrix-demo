@@ -374,26 +374,25 @@ def analyze_reading(rtype: str) -> dict:
     )
 
     # Layer 2: semantic search
-    sim_pct = f"{best_sim:.1%}"
     if in_domain:
-        l2_verdict = f"Looks familiar -- {sim_pct} match to stored bearing signals"
+        l2_verdict = "Bearing corpus: in-domain"
         if rtype == "fault":
             l2_detail = (
                 f"Searched {N_CORPUS:,} historical bearing signals. Even a damaged bearing "
-                f"produces a recognizable vibration pattern -- this reading matches at {sim_pct}. "
-                f"The system has seen bearing faults before."
+                f"produces a recognizable vibration pattern -- nearest match cosine similarity "
+                f"{best_sim:.4f}. The system has seen bearing faults before."
             )
         else:
             l2_detail = (
-                f"Searched {N_CORPUS:,} historical bearing signals. This reading is nearly "
-                f"identical to signals already in the corpus -- it belongs here ({sim_pct} match)."
+                f"Searched {N_CORPUS:,} historical bearing signals. This reading is consistent "
+                f"with the stored corpus -- nearest match cosine similarity {best_sim:.4f}."
             )
     else:
-        l2_verdict = f"Never seen this before -- only {sim_pct} match to any bearing signal"
+        l2_verdict = f"Best bearing similarity: {best_sim:.1%} -- out of domain"
         l2_detail  = (
             f"Searched {N_CORPUS:,} historical bearing vibration signals. "
-            f"The best match is only {sim_pct} -- this reading looks nothing like any bearing signal "
-            f"the system has ever stored. First flag: wrong domain."
+            f"The closest match scores only {best_sim:.4f} cosine similarity -- this reading "
+            f"looks nothing like any bearing signal the system has ever stored. First flag: wrong domain."
         )
 
     # Layer 3: rule engine
