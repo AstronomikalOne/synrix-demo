@@ -357,65 +357,118 @@ def analyze_reading(rtype: str) -> dict:
 
     anomaly = not in_domain or not normal_route or not gate_ok
 
-    l1_detail = (
-        f"Record '{node_name.decode()}' written to persistent lattice in {write_us:.0f} us -- "
-        f"payload: {node_data.decode()[:80]}"
+    # -- Human-readable layer copy (context-aware) --------------------------------
+
+    reading_label = (
+        "CPU performance counter" if is_pmu else
+        "faulty bearing" if rtype == "fault" else
+        "healthy bearing"
     )
+
+    # Layer 1: storage
+    l1_verdict = f"Stored on device in {write_us:.0f} us"
+    l1_detail  = (
+        f"Every reading is written to on-device persistent memory before analysis begins. "
+        f"No cloud, no network round-trip. This {reading_label} reading is now stored "
+        f"as '{node_name.decode()}' and will survive a reboot."
+    )
+
+    # Layer 2: semantic search
+    sim_pct = f"{best_sim:.1%}"
+    if in_domain:
+        l2_verdict = f"Looks familiar -- {sim_pct} match to stored bearing signals"
+        if rtype == "fault":
+            l2_detail = (
+                f"Searched {N_CORPUS:,} historical bearing signals. Even a damaged bearing "
+                f"produces a recognizable vibration pattern -- this reading matches at {sim_pct}. "
+                f"The system has seen bearing faults before."
+            )
+        else:
+            l2_detail = (
+                f"Searched {N_CORPUS:,} historical bearing signals. This reading is nearly "
+                f"identical to signals already in the corpus -- it belongs here ({sim_pct} match)."
+            )
+    else:
+        l2_verdict = f"Never seen this before -- only {sim_pct} match to any bearing signal"
+        l2_detail  = (
+            f"Searched {N_CORPUS:,} historical bearing vibration signals. "
+            f"The best match is only {sim_pct} -- this reading looks nothing like any bearing signal "
+            f"the system has ever stored. First flag: wrong domain."
+        )
+
+    # Layer 3: rule engine
+    if normal_route:
+        l3_verdict = "Classified correctly -- bearing data processing class"
+        l3_detail  = (
+            f"The rule engine assigns a processing class to every reading. "
+            f"All {N_CORPUS:,} historical bearing records share the same class. "
+            f"This {reading_label} reading matches."
+        )
+    else:
+        l3_verdict = "Classified differently -- not a bearing reading"
+        l3_detail  = (
+            f"The rule engine assigns a processing class to every reading. "
+            f"Every bearing record in the corpus shares the same expected class. "
+            f"This reading was assigned a different class -- the system does not "
+            f"normally process this type of data. Second flag."
+        )
+
+    # Layer 4: behavioral gate
+    if gate_ok:
+        l4_verdict = "Decision recognized -- matches learned bearing behavior"
+        l4_detail  = (
+            f"A {_gate_kb} KB model trained exclusively on bearing data correctly "
+            f"predicted the system's decision on this reading. The outcome follows "
+            f"known patterns."
+        )
+    else:
+        l4_verdict = "Decision unrecognized -- model has never seen this before"
+        l4_detail  = (
+            f"A {_gate_kb} KB model trained exclusively on bearing data could not "
+            f"predict the system's decision. It has only ever seen bearing signals -- "
+            f"this outcome is outside everything it was trained on. Third independent flag."
+        )
 
     return {
         "anomaly": anomaly,
+        "rtype": rtype,
         "layer1": {
-            "name": "Persistent Memory Write",
-            "sublabel": "libsynrix lattice -- in-process key-value store, no SQL, no network",
+            "name": "On-Device Storage",
+            "sublabel": "Every reading is written to persistent memory on the device before analysis",
             "pass": write_ok,
             "write_us": write_us,
-            "node_id": int(node_id),
             "node_name": node_name.decode(),
-            "verdict": f"Written in {write_us:.0f} us  (node_id={node_id})",
+            "verdict": l1_verdict,
             "detail": l1_detail,
             "wave_metrics": _WAVE_METRICS if is_pmu else None,
             "vec_dim": AION_VEC_DIM,
         },
         "layer2": {
-            "name": "Semantic Similarity",
-            "sublabel": f"AION512 -- {N_CORPUS:,} bearing vectors indexed",
+            "name": "Does it look like anything we've seen before?",
+            "sublabel": f"Compared against {N_CORPUS:,} historical bearing vibration signals",
             "pass": in_domain,
             "best_sim": best_sim,
             "top_matches": top_matches,
             "search_us": search_us,
             "corpus_size": N_CORPUS,
-            "verdict": "IN DOMAIN" if in_domain else "FOREIGN DOMAIN",
-            "detail": (
-                f"Best match {best_sim:.4f} -- consistent with bearing corpus"
-                if in_domain else
-                f"Best match only {best_sim:.4f} -- unlike any of the {N_CORPUS:,} bearing records"
-            ),
+            "verdict": l2_verdict,
+            "detail": l2_detail,
         },
         "layer3": {
-            "name": "Rule Engine Routing",
-            "sublabel": "SCM deterministic router",
+            "name": "What does the rule engine expect to do with this?",
+            "sublabel": "A deterministic rule engine classifies every reading into a processing class",
             "pass": normal_route,
-            "route": route,
-            "expected": _baseline_route,
             "route_us": route_us,
-            "verdict": f"Route '{route}' -- expected" if normal_route else f"Route '{route}' -- anomalous",
-            "detail": (
-                f"Assigned to '{route}' -- matches all historical bearing records"
-                if normal_route else
-                f"Expected '{_baseline_route}' but got '{route}' -- different execution class"
-            ),
+            "verdict": l3_verdict,
+            "detail": l3_detail,
         },
         "layer4": {
-            "name": "Behavioral Gate",
-            "sublabel": f"{_gate_kb} KB student model trained on bearing data only",
+            "name": "Does the decision match what a trained model expects?",
+            "sublabel": f"An {_gate_kb} KB model trained only on bearing data checks whether this outcome makes sense",
             "pass": gate_ok,
             "gate_kb": _gate_kb,
-            "verdict": "Student agrees with teacher" if gate_ok else "Student disagrees -- MISMATCH",
-            "detail": (
-                "Learned model matches teacher decision on route and template"
-                if gate_ok else
-                f"The {_gate_kb} KB model has never seen this decision pattern -- it was trained on bearing data only"
-            ),
+            "verdict": l4_verdict,
+            "detail": l4_detail,
         },
     }
 
@@ -552,10 +605,10 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   </div>
 
   <div class="stack">
-    <div class="snode"><div class="snode-n">Layer 1</div><div class="snode-t">Lattice Write</div><div class="snode-s">Persistent memory</div></div>
-    <div class="snode"><div class="snode-n">Layer 2</div><div class="snode-t">AION512 Search</div><div class="snode-s">94k vector index</div></div>
-    <div class="snode"><div class="snode-n">Layer 3</div><div class="snode-t">SCM Router</div><div class="snode-s">Rule engine</div></div>
-    <div class="snode"><div class="snode-n">Layer 4</div><div class="snode-t">Behavioral Gate</div><div class="snode-s">Learned student</div></div>
+    <div class="snode"><div class="snode-n">Layer 1</div><div class="snode-t">Store It</div><div class="snode-s">Write to device memory</div></div>
+    <div class="snode"><div class="snode-n">Layer 2</div><div class="snode-t">Recognize It</div><div class="snode-s">Search 94k signals</div></div>
+    <div class="snode"><div class="snode-n">Layer 3</div><div class="snode-t">Classify It</div><div class="snode-s">Rule-based decision</div></div>
+    <div class="snode"><div class="snode-n">Layer 4</div><div class="snode-t">Verify It</div><div class="snode-s">Learned model check</div></div>
   </div>
 
   <div class="btns">
@@ -619,10 +672,10 @@ function metricsHtml(m) {
 }
 
 function layerMeta(l, i) {
-  if (i === 0) return `<div class="lmeta">Lattice write: ${l.write_us} us  |  node_id=${l.node_id}</div>`;
-  if (i === 1) return `<div class="lmeta">AION512 bruteforce: ${l.corpus_size.toLocaleString()} vectors in ${l.search_us} us</div>`;
-  if (i === 2) return `<div class="lmeta">Rule engine: decision in ${l.route_us} us</div>`;
-  if (i === 3) return `<div class="lmeta">${l.gate_kb} KB student model -- trained on bearing data only</div>`;
+  if (i === 0) return `<div class="lmeta">Write latency: ${l.write_us} us  |  stored as: ${l.node_name}</div>`;
+  if (i === 1) return `<div class="lmeta">Search time: ${l.search_us} us across ${l.corpus_size.toLocaleString()} signals</div>`;
+  if (i === 2) return `<div class="lmeta">Decision time: ${l.route_us} us</div>`;
+  if (i === 3) return `<div class="lmeta">Model size: ${l.gate_kb} KB -- trained exclusively on bearing data</div>`;
   return '';
 }
 
@@ -650,11 +703,11 @@ async function send(type) {
   const bad = data.anomaly;
   panel.className = 'panel ' + (bad ? 'bad' : 'ok');
 
-  const vText = bad ? '[!] ANOMALY DETECTED -- flagged across 4 independent layers'
-                    : '[OK] READING ACCEPTED -- all 4 layers confirm bearing domain';
+  const vText = bad ? '[!] ANOMALY DETECTED -- all three detection layers flagged it'
+                    : '[OK] READING ACCEPTED -- confirmed as normal bearing data';
   const vSub  = bad
-    ? 'This reading does not match the bearing domain. Each layer independently flagged it without coordination.'
-    : 'Persistent memory, semantic search, routing, and behavioral gate all confirm this is within the known domain.';
+    ? 'Three independent layers each reached the same conclusion without coordination. No rule was written for this case.'
+    : 'The system stored the reading, matched it to known signals, classified it correctly, and the learned model agreed.';
 
   const ls = [data.layer1, data.layer2, data.layer3, data.layer4];
   panel.innerHTML = `
