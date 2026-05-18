@@ -1,6 +1,6 @@
-# Synrix — Edge Inference Demo
+# Synrix — Edge Anomaly Routing Demo
 
-Universal anomaly detection that doesn't require knowing what anomalies look like — only what normal looks like. Everything else gets flagged automatically, across four independent layers, in microseconds, on a $400 edge device. No cloud required.
+A reproducibility artifact for domain-bound anomaly detection on embedded hardware: public bearing data corpus, AION512 vector retrieval, deterministic routing, and an 11 KB behavioral gate. Runs on a $400 Jetson Orin Nano with no cloud dependency.
 
 Includes a behavioral equivalence gate, router throughput benchmark, and interactive web demo.
 
@@ -136,7 +136,7 @@ A self-contained reproducibility artifact for a paper on edge inference routing.
 
 - **Behavioral equivalence gate** — a C-trained softmax-linear student matches a deterministic rule-based teacher on 1.000/1.000 across three real-world domains (UNSW-NB15 network traffic, CWRU bearing fault signals, WAVE silicon PMU data)
 - **Router throughput** — three routing modes (rules / gated / shadow) measured on real hardware
-- **Cache-pressure resilience** — batch inference over a 50k-vector, ~52 MB synthetic corpus (exceeds L3)
+- **Cache-pressure resilience** — batch inference over a 50k-vector synthetic stress corpus (~52 MB, exceeds L3; separate from the 94,795-vector CWRU bearing corpus used in the interactive demo)
 
 ## What this is not
 
@@ -144,7 +144,23 @@ A self-contained reproducibility artifact for a paper on edge inference routing.
 - A general-purpose database or vector store
 - A product release
 
-The full platform includes a persistent knowledge lattice, AION512 semantic index, and φ/PSS probe subsystem. This repo contains only what is needed to verify the paper's routing and equivalence claims.
+**What is in this repo:**
+
+| Component | Status |
+|---|---|
+| `libsynrix.so` — persistent knowledge lattice | Pre-built binary; C source is proprietary |
+| `libaion_semantic_index.so` — AION512 vector index | Pre-built binary; C source is proprietary |
+| `liblattice_expert_train.so` — C softmax-linear trainer | Pre-built binary; C source is proprietary |
+| SCM routing module (`experiments/scm_v0_1/`) | Python source, included |
+| Pre-trained model weights (12 KB `.npz` files) | Included |
+| CWRU public bearing corpus (94,795 vectors) | Downloaded on first run via `make setup-corpus` |
+
+**What is NOT in this repo:**
+
+- φ/PSS probe subsystem — proprietary, not included
+- Live WAVE PMU collection pipeline — proprietary, not included
+- C source for any native library — proprietary, not included
+- Full training corpus — only the pre-trained weights are shipped
 
 ---
 
@@ -220,7 +236,7 @@ lib/                    Pre-built native libraries (linux-aarch64, linux-x86_64)
 docs/                   Architecture notes and benchmark receipts
 ```
 
-The C source for `libsynrix.so` and `liblattice_expert_train.so` is proprietary and not included in this repository. Pre-built binaries are provided in `lib/`.
+The C source for all native libraries (`libsynrix.so`, `libaion_semantic_index.so`, `liblattice_expert_train.so`) is proprietary and not included in this repository. Pre-built binaries are provided in `lib/`.
 
 ---
 
