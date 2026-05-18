@@ -6,17 +6,40 @@ Behavioral equivalence gate + router throughput demo for the Synrix edge inferen
 
 ### Docker (recommended)
 
+**Step 1 — open a terminal and navigate into the repo folder:**
+
 ```bash
-sudo docker build -t synrix-gate .
-
-# Behavioral equivalence gate + router benchmark (default)
-sudo docker run --rm synrix-gate
-
-# End-to-end edge inference pipeline: lattice → AION512 → routing → behavioral gate
-sudo docker run --rm synrix-gate python3 scripts/demo_e2e_pipeline.py
+cd synrix-demo        # or wherever you cloned/unzipped it
 ```
 
-> **Note:** `sudo` is required on most Linux systems unless your user is in the `docker` group. On Mac/Windows with Docker Desktop, omit `sudo`.
+**Step 2 — build the image (the `.` at the end is required — it tells Docker where the code is):**
+
+```bash
+# Linux / macOS
+docker build -t synrix-gate .
+
+# Windows (Command Prompt or PowerShell) — no sudo
+docker build -t synrix-gate .
+```
+
+> **Linux note:** If you get a permission error, prefix with `sudo`, or add your user to the `docker` group.
+
+**Step 3 — run:**
+
+```bash
+# Linux / macOS
+docker run --rm synrix-gate
+
+# Windows
+docker run --rm synrix-gate
+```
+
+**Common mistake:** Running `docker build -t synrix-gate` without the `.` gives `requires 1 argument` — the dot is the build path, not punctuation.
+
+```bash
+# End-to-end edge inference pipeline: lattice → AION512 → routing → behavioral gate
+docker run --rm synrix-gate python3 scripts/demo_e2e_pipeline.py
+```
 
 ### Bare-metal (no Docker)
 
@@ -54,27 +77,33 @@ Throughput numbers are measured live on your hardware and will vary. See `docs/B
 ### Interactive web demo (live anomaly detection)
 
 A browser-based demo where you send different types of sensor readings and watch the
-system analyze each one through three independent detection layers in real time.
+system process each one through four independent layers in real time.
 
 ```bash
+# Docker (recommended — handles all dependencies)
+docker run --rm -p 5050:5050 synrix-gate python3 scripts/demo_interactive.py
+# Then open: http://localhost:5050
+
 # Bare-metal (requires make setup + make setup-corpus first)
 make run-interactive
 # Then open: http://localhost:5050
-
-# Docker
-docker run --rm -p 5050:5050 synrix-gate python3 scripts/demo_interactive.py
-# Then open: http://localhost:5050
 ```
 
-Three buttons let you send:
+Three buttons let you send a reading:
 - **Normal Bearing** — healthy vibration signal from an industrial motor
 - **Bearing Fault** — inner race crack (still a bearing signal, correctly handled)
-- **Silicon PMU** — CPU performance counters (wrong domain entirely)
+- **Silicon Chip PMU** — CPU performance counters (wrong domain entirely)
 
-The bearing readings show all green — high similarity to the 94,795-vector corpus,
-expected routing class, gate agrees. The PMU reading triggers all three layers:
-similarity collapses to ~0.098, route changes to a different execution class, and
-the 11 KB learned model — trained only on bearing data — disagrees with the teacher.
+Each reading passes through four layers:
+1. **Store it** — written to on-device persistent memory in microseconds
+2. **Recognize it** — searched against 94,795 historical bearing signals
+3. **Classify it** — rule engine assigns a processing class
+4. **Verify it** — an 11 KB model trained only on bearing data checks the decision
+
+Bearing readings (both normal and fault) show all green across all four layers.
+The PMU reading triggers layers 2, 3, and 4: similarity drops to ~9.8%, the
+rule engine assigns it a different class, and the learned model has never seen
+this outcome in bearing data — three independent flags, no coordination between them.
 
 Startup takes ~15 seconds while 94,795 vectors are loaded into AION512.
 
