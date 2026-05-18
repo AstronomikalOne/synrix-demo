@@ -125,6 +125,12 @@ def _parse() -> argparse.Namespace:
                    help="RNG seed for deterministic corpus sampling")
     p.add_argument("--dry-run",   action="store_true",
                    help="simulate pipeline without native libraries (NumPy path, not native)")
+    p.add_argument("--ivf",       action="store_true",
+                   help="build flat IVF index at startup and use IVF query path (faster per-event)")
+    p.add_argument("--ivf-clusters", type=int, default=320,
+                   help="number of IVF clusters to build")
+    p.add_argument("--ivf-probe",    type=int, default=20,
+                   help="number of IVF clusters to probe per query")
     return p.parse_args()
 
 
@@ -194,6 +200,10 @@ def main() -> None:
             ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
         _aion.semantic_vector_indexing_system_destroy.restype  = None
         _aion.semantic_vector_indexing_system_destroy.argtypes = [ctypes.c_void_p]
+        _aion.semantic_vector_indexing_system_build_ivf.restype  = ctypes.c_int
+        _aion.semantic_vector_indexing_system_build_ivf.argtypes = [ctypes.c_void_p,
+                                                                     ctypes.c_uint32,
+                                                                     ctypes.c_uint32]
         _aion.vector_similarity_query_sizeof.restype  = ctypes.c_size_t
         _aion.vector_similarity_query_sizeof.argtypes = []
         _aion.semantic_vector_indexing_system_search_similar.restype  = ctypes.c_int
@@ -272,7 +282,20 @@ def main() -> None:
                 _aion_buf, ctypes.c_uint32(vi + 1), vec.ctypes.data_as(ctypes.c_void_p))
         idx_ms = (time.perf_counter() - t0) * 1000
         print(f"[INIT]  AION512: {N_CORPUS:,} vectors indexed in {idx_ms:.0f}ms", flush=True)
-        print(f"[INIT]  Retrieval path: AION512 bruteforce (native libaion)", flush=True)
+
+        if args.ivf:
+            print(f"[INIT]  Building IVF index ({args.ivf_clusters} clusters)...", flush=True)
+            t0_ivf = time.perf_counter()
+            rc = _aion.semantic_vector_indexing_system_build_ivf(
+                _aion_buf, ctypes.c_uint32(args.ivf_clusters), ctypes.c_uint32(20))
+            ivf_ms = (time.perf_counter() - t0_ivf) * 1000
+            if rc != 0:
+                print(f"[ERROR] build_ivf failed: rc={rc}")
+                sys.exit(1)
+            print(f"[INIT]  IVF built in {ivf_ms:.0f}ms  ({args.ivf_clusters} clusters, probe={args.ivf_probe})", flush=True)
+            print(f"[INIT]  Retrieval path: AION512 IVF (native libaion, n_probe={args.ivf_probe})", flush=True)
+        else:
+            print(f"[INIT]  Retrieval path: AION512 bruteforce (native libaion)", flush=True)
     else:
         print(f"[INIT]  Retrieval path: NumPy cosine similarity  [DRY-RUN -- not native]", flush=True)
 
@@ -342,10 +365,10 @@ def main() -> None:
         q.cluster_filter         = 0
         q.use_lsh                = False
         q.use_clustering         = False
-        q.use_aion512_bruteforce = True
+        q.use_aion512_bruteforce = True   # IVF path is inside this branch; bruteforce is fallback
         q.query_aion512_f32      = vec.ctypes.data
-        q.use_aion512_ivf        = False
-        q.aion512_ivf_n_probe    = 0
+        q.use_aion512_ivf        = args.ivf
+        q.aion512_ivf_n_probe    = args.ivf_probe if args.ivf else 0
         q.use_float32_rerank     = False
         q.rerank_oversample_factor = 0
         q.use_aion512_hivf       = False
@@ -473,7 +496,9 @@ def main() -> None:
     print(f"  p95 latency : {p95}us")
     if not dry_run:
         print(f"  WAL status  : committed  (fdatasync verified)")
-        print(f"  Retrieval   : AION512 bruteforce (native libaion)")
+        retrieval_label = (f"AION512 IVF (native libaion, n_probe={args.ivf_probe})"
+                           if args.ivf else "AION512 bruteforce (native libaion)")
+        print(f"  Retrieval   : {retrieval_label}")
     else:
         print(f"  WAL status  : n/a  [DRY-RUN]")
         print(f"  Retrieval   : NumPy cosine  [DRY-RUN -- not native]")

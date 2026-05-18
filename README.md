@@ -109,6 +109,46 @@ Startup takes ~15 seconds while 94,795 vectors are loaded into AION512.
 
 ---
 
+### Autonomous agent loop (terminal stream)
+
+A terminal demo showing Synrix as an agent substrate — streams 1000 events through the full stack (lattice write → AION512 search → SCM routing → behavioral gate), then halts and freezes state when a foreign reading breaches the domain manifold.
+
+```bash
+# Docker — bruteforce retrieval (~7ms/query, no IVF build overhead)
+docker run --rm -v $(pwd)/analysis:/app/analysis synrix-gate \
+  python3 scripts/demo_autonomous_loop.py --count 1000
+
+# Docker — IVF retrieval (~1.5ms/query after ~2min IVF build)
+docker run --rm -v $(pwd)/analysis:/app/analysis synrix-gate \
+  python3 scripts/demo_autonomous_loop.py --count 1000 --ivf
+
+# Bare-metal
+PYTHONPATH=. python3 scripts/demo_autonomous_loop.py --count 1000
+PYTHONPATH=. python3 scripts/demo_autonomous_loop.py --count 1000 --ivf
+```
+
+Expected output (bruteforce):
+
+```
+[OK]    ID: 09001 | LAT: 6798us | L1 lattice match
+[OK]    ID: 09002 | LAT: 6903us | L1 lattice match
+[WARN]  ID: 09008 | LAT: 6667us | L2 manifold check -> fault:outer_014
+...
+[CRITICAL] ID: 09999 | Manifold breach -- 3 independent layers flagged
+           Layer 1: cosine displacement 0.9019 -- out of learned space
+           Layer 2: execution class mismatch
+           Layer 3: behavioral policy divergence
+
+[HALT]  Loop frozen. WAL committed. fdatasync verified. State intact.
+
+  p50 latency : 6798us   (AION512 bruteforce over 94,795 vectors)
+  p95 latency : 7129us
+```
+
+With `--ivf`: p50 drops to ~1.5ms after a ~2-minute IVF build (320 k-means clusters, 20 probes). The bruteforce run requires no build step and starts immediately.
+
+---
+
 ### End-to-end pipeline expected output
 
 ```
