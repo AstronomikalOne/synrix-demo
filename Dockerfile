@@ -8,6 +8,7 @@ WORKDIR /app
 COPY scripts/demo_synrix_gate.py        scripts/demo_synrix_gate.py
 COPY scripts/demo_e2e_pipeline.py       scripts/demo_e2e_pipeline.py
 COPY scripts/demo_interactive.py        scripts/demo_interactive.py
+COPY scripts/demo_autonomous_loop.py    scripts/demo_autonomous_loop.py
 COPY scripts/benchmark_router_inference.py  scripts/benchmark_router_inference.py
 COPY scripts/smoke_scm_tiny_expert_dispatch.py  scripts/smoke_scm_tiny_expert_dispatch.py
 COPY scripts/prepare_cwru_corpus.py     scripts/prepare_cwru_corpus.py
