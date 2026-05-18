@@ -13,6 +13,7 @@ COPY scripts/demo_interactive.py        scripts/demo_interactive.py
 COPY scripts/demo_autonomous_loop.py    scripts/demo_autonomous_loop.py
 COPY scripts/benchmark_router_inference.py  scripts/benchmark_router_inference.py
 COPY scripts/smoke_scm_tiny_expert_dispatch.py  scripts/smoke_scm_tiny_expert_dispatch.py
+COPY scripts/demo_operational_loop.py   scripts/demo_operational_loop.py
 COPY scripts/prepare_cwru_corpus.py     scripts/prepare_cwru_corpus.py
 COPY experiments/                       experiments/
 COPY analysis/formal_artifacts/scm_tiny/scm_tiny_mixed_unsw_wave_cwru_cpath.npz \

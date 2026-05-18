@@ -8,3 +8,4 @@ media/*.mp4
 media/*.mov
 media/*.webm
 !media/README.md
+receipts/*.jsonl

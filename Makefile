@@ -1,5 +1,5 @@
 .PHONY: build run run-stress run-expert run-fresh run-interactive setup setup-corpus \
-  demo-screen-record
+  demo-screen-record demo-operational-loop
 
 # ── Docker path (recommended) ─────────────────────────────────────────────────
 build:
@@ -42,3 +42,9 @@ run-interactive:
 # Paced terminal output for screen recording (gate + e2e). See docs/DEMO_SPLIT.md
 demo-screen-record:
 	bash scripts/demo_screen_record.sh
+
+# Operational loop: streams events through full stack, halts on foreign domain.
+# Writes receipt to receipts/latest_operational_loop.jsonl.
+demo-operational-loop:
+	PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_operational_loop.py \
+	  --receipt receipts/latest_operational_loop.jsonl
