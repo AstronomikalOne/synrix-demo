@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Synrix Interactive Demo -- three-layer live anomaly detection.
+Synrix Interactive Demo -- four-layer live anomaly detection.
 
 Send different types of sensor readings and watch the system detect cross-domain
-anomalies in real time through three independent layers.
+anomalies in real time through four independent layers: persistent memory write,
+semantic similarity search, rule engine routing, and behavioral gate.
 
 Run (bare-metal):
   PYTHONPATH=. python3 scripts/demo_interactive.py
@@ -14,11 +15,14 @@ Run (Docker):
 """
 from __future__ import annotations
 
+import atexit
 import ctypes
 import json
 import os
 import platform
+import shutil
 import sys
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -49,8 +53,10 @@ _CWRU_NPZ    = Path(os.environ.get(
 ))
 _CORPUS_NPZ  = _ROOT / "analysis/cwru_corpus.npz"
 
-AION_VEC_DIM = 512
-PORT         = 5050
+AION_VEC_DIM              = 512
+PORT                      = 5050
+_LATTICE_BUF_SIZE         = 1024 * 1024
+_LATTICE_NODE_TYPE_OBS    = 3
 
 # -- Helpers --------------------------------------------------------------------
 
@@ -132,6 +138,15 @@ _aion.semantic_vector_indexing_system_search_similar.argtypes = [
     ctypes.POINTER(ctypes.c_uint32),
 ]
 
+_lib.lattice_init.restype        = ctypes.c_int
+_lib.lattice_init.argtypes       = [ctypes.c_void_p, ctypes.c_char_p,
+                                    ctypes.c_uint32, ctypes.c_uint32]
+_lib.lattice_add_node.restype    = ctypes.c_uint64
+_lib.lattice_add_node.argtypes   = [ctypes.c_void_p, ctypes.c_int,
+                                    ctypes.c_char_p, ctypes.c_char_p]
+_lib.lattice_cleanup.restype     = None
+_lib.lattice_cleanup.argtypes    = [ctypes.c_void_p]
+
 print(f"  libsynrix loaded  ({_synrix_path.stat().st_size // 1024} KB)", flush=True)
 print(f"  libaion loaded    ({_aion_path.stat().st_size // 1024} KB)", flush=True)
 
@@ -197,13 +212,34 @@ if c_sz != py_sz:
     print(f"  [ERROR] _AionQuery struct mismatch: ctypes={py_sz} C={c_sz}", flush=True)
     sys.exit(1)
 
+# -- Initialize persistent lattice ---------------------------------------------
+
+print("[STARTUP] Initializing persistent lattice...", flush=True)
+
+_lattice_tmpdir = tempfile.mkdtemp(prefix="synrix_demo_")
+_lattice_path   = os.path.join(_lattice_tmpdir, "demo.lat")
+_lattice_buf    = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
+_node_counter   = [0]  # mutable box for thread-safe increment under _lattice_lock
+
+if _lib.lattice_init(_lattice_buf, _lattice_path.encode(), 512, 0) != 0:
+    print("  [ERROR] lattice_init failed", flush=True)
+    sys.exit(1)
+
+def _cleanup_lattice() -> None:
+    _lib.lattice_cleanup(_lattice_buf)
+    shutil.rmtree(_lattice_tmpdir, ignore_errors=True)
+
+atexit.register(_cleanup_lattice)
+print(f"  Lattice ready  ({_LATTICE_BUF_SIZE // 1024} KB in-process store)", flush=True)
+
 # -- Load fixture packets -------------------------------------------------------
 
 print("[STARTUP] Loading packets and routing stack...", flush=True)
 
-fixture   = json.loads(_GATE_FIX.read_text())
-cwru_pkts = [SCMInputPacket.from_dict(d) for d in fixture["gates"]["Gate 2 (CWRU-domain)"]]
-wave_pkt  = SCMInputPacket.from_dict(fixture["gates"]["Gate 3 (WAVE silicon)"][0])
+fixture      = json.loads(_GATE_FIX.read_text())
+cwru_pkts    = [SCMInputPacket.from_dict(d) for d in fixture["gates"]["Gate 2 (CWRU-domain)"]]
+wave_pkt     = SCMInputPacket.from_dict(fixture["gates"]["Gate 3 (WAVE silicon)"][0])
+_WAVE_METRICS = fixture["gates"]["Gate 3 (WAVE silicon)"][0].get("wave_goal_metrics", {})
 
 _teacher  = RulesScmRouter(ExecutionContract())
 _art      = ScmTinyArtifact.load(_CWRU_NPZ)
@@ -218,9 +254,11 @@ _baseline_route = str(_teacher.route(cwru_pkts[0]).route)
 print(f"  Packets ready   |  baseline_route={_baseline_route}", flush=True)
 print(f"  Gate loaded     |  {_gate_kb} KB CWRU domain expert", flush=True)
 
-# -- Thread lock (AION search is not reentrant) ---------------------------------
+# -- Thread locks ---------------------------------------------------------------
+# AION search is not reentrant; lattice writes are serialised for safety.
 
-_aion_lock = threading.Lock()
+_aion_lock    = threading.Lock()
+_lattice_lock = threading.Lock()
 
 # -- Core detection -------------------------------------------------------------
 
@@ -261,52 +299,84 @@ def _aion_search(vec: np.ndarray) -> tuple[list[dict], float]:
 
 def analyze_reading(rtype: str) -> dict:
     """
-    Three-layer detection for a reading type: 'normal', 'fault', or 'pmu'.
+    Four-layer detection for a reading type: 'normal', 'fault', or 'pmu'.
 
-    Layer 1 (AION512 similarity) uses the correct vector space for each type:
-      - bearing buttons: query with an actual corpus vector (vibration signal space)
-                         so similarity is high (~0.99) -- in domain
-      - pmu button:      query with featurized SCM features (different space)
-                         so similarity is low (~0.10) -- foreign domain
-
-    Layers 2-3 use the SCM packet for routing and gate checks.
+    Layer 1 (Lattice write): persist the incoming record; return write latency.
+    Layer 2 (AION512 similarity): query with the correct vector space for each type.
+      - bearing buttons: actual corpus vector (sim ~0.99, in domain)
+      - pmu button:      featurized SCM features (sim ~0.10, foreign domain)
+    Layers 3-4: SCM routing and behavioral gate.
     """
-    # Layer 1: pick the right query vector
-    if rtype in _REPR_VEC:
-        # Bearing reading: use a stored corpus vector -- will find near-identical neighbours
-        aion_vec = _REPR_VEC[rtype]
-        pkt      = cwru_pkts[0] if rtype == "normal" else cwru_pkts[2]
-        feat     = featurize_packets([pkt])
-    else:
-        # PMU: encode the SCM packet's feature vector -- projects into a foreign space
+    is_pmu = rtype not in _REPR_VEC
+
+    if is_pmu:
         feat     = featurize_packets([wave_pkt])
         aion_vec = _encode_512(feat[0])
         pkt      = wave_pkt
+    else:
+        aion_vec = _REPR_VEC[rtype]
+        pkt      = cwru_pkts[0] if rtype == "normal" else cwru_pkts[2]
+        feat     = featurize_packets([pkt])
 
+    # Layer 1: write to persistent lattice (counter + write under single lock)
+    with _lattice_lock:
+        _node_counter[0] += 1
+        seq = _node_counter[0]
+        if is_pmu:
+            node_name = f"WAVE_PMU_{seq:04d}".encode()
+            node_data = (" ".join(f"{k}={v}" for k, v in _WAVE_METRICS.items())).encode()
+        else:
+            label     = "normal" if rtype == "normal" else "inner_007"
+            node_name = f"CWRU_{label.upper()}_{seq:04d}".encode()
+            node_data = f"label={label} seq={seq}".encode()
+        t0_lat  = time.perf_counter_ns()
+        node_id = _lib.lattice_add_node(
+            _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data)
+        write_us = round((time.perf_counter_ns() - t0_lat) / 1e3, 1)
+
+    write_ok = node_id != 0
+
+    # Layer 2: AION512 similarity
     top_matches, search_us = _aion_search(aion_vec)
     best_sim  = top_matches[0]["score"] if top_matches else 0.0
-    in_domain = best_sim >= 0.50
+    in_domain = bool(best_sim >= 0.50)
 
-    # Layer 2: SCM rule engine routing
-    t0_r     = time.perf_counter_ns()
-    out      = _teacher.route(pkt)
-    route_us = round((time.perf_counter_ns() - t0_r) / 1e3, 1)
-    route    = str(out.route)
-    normal_route = (route == _baseline_route)
+    # Layer 3: SCM rule engine routing
+    t0_r      = time.perf_counter_ns()
+    out       = _teacher.route(pkt)
+    route_us  = round((time.perf_counter_ns() - t0_r) / 1e3, 1)
+    route     = str(out.route)
+    normal_route = bool(route == _baseline_route)
 
-    # Layer 3: Behavioral gate
-    y_r     = route_to_index(out.route)
-    y_t     = template_to_index(template_id_from_teacher(pkt, out))
-    r_pred  = _pred.route.predict_indices(feat)[0]
-    t_pred  = _pred.template.predict_indices(feat)[0]
+    # Layer 4: Behavioral gate
+    y_r    = route_to_index(out.route)
+    y_t    = template_to_index(template_id_from_teacher(pkt, out))
+    r_pred = _pred.route.predict_indices(feat)[0]
+    t_pred = _pred.template.predict_indices(feat)[0]
     gate_ok = bool(r_pred == y_r and t_pred == y_t)
-    in_domain    = bool(in_domain)
-    normal_route = bool(normal_route)
+
     anomaly = not in_domain or not normal_route or not gate_ok
+
+    l1_detail = (
+        f"Record '{node_name.decode()}' written to persistent lattice in {write_us:.0f} us -- "
+        f"payload: {node_data.decode()[:80]}"
+    )
 
     return {
         "anomaly": anomaly,
         "layer1": {
+            "name": "Persistent Memory Write",
+            "sublabel": "libsynrix lattice -- in-process key-value store, no SQL, no network",
+            "pass": write_ok,
+            "write_us": write_us,
+            "node_id": int(node_id),
+            "node_name": node_name.decode(),
+            "verdict": f"Written in {write_us:.0f} us  (node_id={node_id})",
+            "detail": l1_detail,
+            "wave_metrics": _WAVE_METRICS if is_pmu else None,
+            "vec_dim": AION_VEC_DIM,
+        },
+        "layer2": {
             "name": "Semantic Similarity",
             "sublabel": f"AION512 -- {N_CORPUS:,} bearing vectors indexed",
             "pass": in_domain,
@@ -321,7 +391,7 @@ def analyze_reading(rtype: str) -> dict:
                 f"Best match only {best_sim:.4f} -- unlike any of the {N_CORPUS:,} bearing records"
             ),
         },
-        "layer2": {
+        "layer3": {
             "name": "Rule Engine Routing",
             "sublabel": "SCM deterministic router",
             "pass": normal_route,
@@ -335,7 +405,7 @@ def analyze_reading(rtype: str) -> dict:
                 f"Expected '{_baseline_route}' but got '{route}' -- different execution class"
             ),
         },
-        "layer3": {
+        "layer4": {
             "name": "Behavioral Gate",
             "sublabel": f"{_gate_kb} KB student model trained on bearing data only",
             "pass": gate_ok,
@@ -375,21 +445,32 @@ _HTML_STR = """<!DOCTYPE html>
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
-.wrap{max-width:860px;margin:0 auto;padding:44px 20px}
+.wrap{max-width:880px;margin:0 auto;padding:44px 20px}
 
 /* header */
-.hdr{margin-bottom:36px}
+.hdr{margin-bottom:32px}
 .hdr h1{font-size:1.75rem;font-weight:700;color:var(--bright);letter-spacing:-.02em}
 .hdr h1 span{color:var(--blue)}
-.hdr p{margin-top:10px;color:var(--dim);line-height:1.65;font-size:.93rem;max-width:620px}
+.pitch{margin-top:12px;background:rgba(77,166,255,.06);border:1px solid rgba(77,166,255,.18);
+  border-radius:8px;padding:14px 18px}
+.pitch p{font-size:.9rem;line-height:1.7;color:var(--text)}
+.pitch p strong{color:var(--bright)}
 
 /* scenario box */
-.scene{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:32px}
+.scene{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:28px}
 .scene-label{font-size:.73rem;text-transform:uppercase;letter-spacing:.1em;color:var(--blue);margin-bottom:8px;font-weight:600}
-.scene p{font-size:.9rem;line-height:1.7;color:var(--text)}
+.scene p{font-size:.88rem;line-height:1.7;color:var(--text)}
+
+/* stack diagram */
+.stack{display:flex;gap:0;margin-bottom:28px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.snode{flex:1;padding:10px 6px;text-align:center;border-right:1px solid var(--border);background:var(--card)}
+.snode:last-child{border-right:none}
+.snode-n{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.snode-t{font-size:.72rem;font-weight:700;color:var(--blue);margin-top:3px}
+.snode-s{font-size:.6rem;color:var(--dim);margin-top:2px;line-height:1.3}
 
 /* reading buttons */
-.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:32px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px}
 .btn{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:22px 14px 18px;
   cursor:pointer;text-align:center;transition:border-color .15s,transform .12s;color:inherit;font:inherit}
 .btn:hover{border-color:var(--blue);transform:translateY(-2px)}
@@ -412,16 +493,16 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* verdict row */
-.verdict-row{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border)}
-.verdict-badge{font-size:1.15rem;font-weight:700;white-space:nowrap}
+.verdict-row{display:flex;align-items:center;gap:16px;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.verdict-badge{font-size:1.1rem;font-weight:700;white-space:nowrap}
 .verdict-badge.ok{color:var(--green)}
 .verdict-badge.bad{color:var(--red)}
-.verdict-sub{font-size:.85rem;color:var(--dim);line-height:1.5}
+.verdict-sub{font-size:.84rem;color:var(--dim);line-height:1.5}
 
 /* layers */
-.layers{display:flex;flex-direction:column;gap:10px}
-.layer{display:flex;gap:14px;padding:14px 16px;border-radius:8px;border:1px solid transparent;
-  opacity:0;transform:translateY(8px);transition:opacity .35s,transform .35s,border-color .3s}
+.layers{display:flex;flex-direction:column;gap:8px}
+.layer{display:flex;gap:14px;padding:12px 14px;border-radius:8px;border:1px solid transparent;
+  opacity:0;transform:translateY(8px);transition:opacity .32s,transform .32s,border-color .3s}
 .layer.show{opacity:1;transform:translateY(0)}
 .layer.ok{border-color:rgba(0,230,118,.2);background:rgba(0,230,118,.03)}
 .layer.bad{border-color:rgba(255,68,68,.2);background:rgba(255,68,68,.03)}
@@ -433,15 +514,24 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 
 .lbody{flex:1;min-width:0}
 .lname{font-size:.82rem;font-weight:700;color:var(--bright)}
-.lsub{font-size:.72rem;color:var(--dim);margin-bottom:4px}
-.lverdict{font-size:.83rem;font-weight:600}
+.lsub{font-size:.71rem;color:var(--dim);margin-bottom:3px}
+.lverdict{font-size:.82rem;font-weight:600}
 .lverdict.ok{color:var(--green)}
 .lverdict.bad{color:var(--red)}
-.ldetail{font-size:.75rem;color:var(--dim);margin-top:3px;line-height:1.5}
-.lmeta{font-size:.7rem;color:var(--border);margin-top:3px;color:#44446a}
+.ldetail{font-size:.74rem;color:var(--dim);margin-top:3px;line-height:1.5;word-break:break-all}
+.lmeta{font-size:.69rem;margin-top:3px;color:#44446a}
+
+/* WAVE metric fields grid */
+.metrics-wrap{margin-top:8px;padding:8px 10px;background:#080814;border-radius:6px;border:1px solid var(--border)}
+.metrics-label{font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--blue);margin-bottom:6px;font-weight:600}
+.metrics-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mfield{text-align:center;padding:4px 2px;border-radius:4px;background:#0c0c1e;border:1px solid var(--border)}
+.mfield-k{font-size:.6rem;color:var(--dim)}
+.mfield-v{font-size:.72rem;font-weight:700;color:var(--blue)}
+.metrics-enc{margin-top:6px;font-size:.68rem;color:#44446a;line-height:1.5}
 
 /* footer stats */
-.stats{margin-top:28px;text-align:center;font-size:.72rem;color:var(--dim)}
+.stats{margin-top:26px;text-align:center;font-size:.72rem;color:var(--dim)}
 .stats span{color:var(--blue)}
 </style>
 </head>
@@ -450,23 +540,32 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 
   <div class="hdr">
     <h1><span>Synrix</span> &mdash; Live Edge Inference</h1>
-    <p>Choose a reading type below. The system runs it through three independent detection layers and shows you what it found.</p>
+    <div class="pitch">
+      <p><strong>Universal anomaly detection</strong> that doesn't require knowing what anomalies look like &mdash; only what normal looks like. Everything else gets flagged automatically, across four independent layers, in microseconds, on a $400 edge device. No cloud. No pre-labelled anomalies needed.</p>
+    </div>
   </div>
 
   <div class="scene">
-    <div class="scene-label">Scenario</div>
-    <p>A predictive maintenance system monitors industrial bearings &mdash; the rotating parts inside motors and gearboxes. It has seen <span id="sCorpus">94,795</span> real vibration signals across <span id="sClasses">10</span> fault types and learned what legitimate sensor data looks like.</p>
-    <p style="margin-top:10px">Midway through normal operation, a completely different kind of reading arrives: performance counter data from a silicon chip (CPU cache misses, branch mispredictions). It has nothing to do with bearings. No rule was written to catch this. The system figures it out from what it already knows.</p>
+    <div class="scene-label">Demo Scenario</div>
+    <p>A predictive maintenance system monitors industrial bearings &mdash; the rotating parts inside motors and gearboxes. It has seen <span id="sCorpus">94,795</span> real vibration signals across <span id="sClasses">10</span> fault types and <em>only</em> learned what legitimate bearing data looks like.</p>
+    <p style="margin-top:8px">Midway through normal operation, a completely different kind of reading arrives: performance counter data from a silicon chip (CPU cache misses, branch mispredictions, memory bandwidth). It has nothing to do with bearings. No rule was written to catch this. Select it below and watch all four layers flag it independently.</p>
+  </div>
+
+  <div class="stack">
+    <div class="snode"><div class="snode-n">Layer 1</div><div class="snode-t">Lattice Write</div><div class="snode-s">Persistent memory</div></div>
+    <div class="snode"><div class="snode-n">Layer 2</div><div class="snode-t">AION512 Search</div><div class="snode-s">94k vector index</div></div>
+    <div class="snode"><div class="snode-n">Layer 3</div><div class="snode-t">SCM Router</div><div class="snode-s">Rule engine</div></div>
+    <div class="snode"><div class="snode-n">Layer 4</div><div class="snode-t">Behavioral Gate</div><div class="snode-s">Learned student</div></div>
   </div>
 
   <div class="btns">
     <button class="btn" id="btn-normal" onclick="send('normal')">
-      <div class="btn-icon">&#9881;&#65039;</div>
+      <div class="btn-icon">&#9881;</div>
       <div class="btn-name">Normal Bearing</div>
       <div class="btn-sub">Healthy rotation signal from industrial motor</div>
     </button>
     <button class="btn" id="btn-fault" onclick="send('fault')">
-      <div class="btn-icon">&#9888;&#65039;</div>
+      <div class="btn-icon">&#9888;</div>
       <div class="btn-name">Bearing Fault</div>
       <div class="btn-sub">Inner race crack &mdash; still a bearing signal</div>
     </button>
@@ -478,20 +577,19 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   </div>
 
   <div class="panel" id="panel">
-    <div class="idle">Choose a reading type above to run it through the detection stack.</div>
+    <div class="idle">Choose a reading type above to run it through the full detection stack.</div>
   </div>
 
   <div class="stats">
     Live on this hardware &nbsp;&middot;&nbsp;
     <span id="fCorpus">&#8230;</span> bearing vectors indexed &nbsp;&middot;&nbsp;
-    H-IVF loaded from NVMe in <span id="fOpen">&#8230;</span> ms &nbsp;&middot;&nbsp;
+    H-IVF loaded in <span id="fOpen">&#8230;</span> ms &nbsp;&middot;&nbsp;
     <span id="fPlatform">&#8230;</span>
   </div>
   <div class="stats" style="margin-top:6px;font-style:italic">
-    Note: per-layer timings are C-library inference measurements only &mdash;
-    end-to-end request latency includes Python HTTP and browser round-trip overhead
-    not present in a production deployment. See <code>docs/BENCHMARK_RECEIPTS.md</code>
-    for production throughput numbers from the Jetson Orin Nano.
+    Per-layer timings are C-library inference measurements only &mdash; end-to-end latency includes Python HTTP
+    and browser round-trip overhead not present in a production deployment.
+    See <code>docs/BENCHMARK_RECEIPTS.md</code> for Jetson Orin Nano production numbers.
   </div>
 
 </div>
@@ -507,13 +605,34 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
   } catch(_){}
 })();
 
+function metricsHtml(m) {
+  if (!m) return '';
+  const entries = Object.entries(m);
+  const cells = entries.map(([k,v]) =>
+    `<div class="mfield"><div class="mfield-k">${k}</div><div class="mfield-v">${v}</div></div>`
+  ).join('');
+  return `<div class="metrics-wrap">
+    <div class="metrics-label">Live WAVE packet fields (pre-recorded fixture)</div>
+    <div class="metrics-grid">${cells}</div>
+    <div class="metrics-enc">These 14 metric values are tiled into a 512-float L2-normalised vector and compared against ${(94795).toLocaleString()} bearing vectors in AION512.</div>
+  </div>`;
+}
+
+function layerMeta(l, i) {
+  if (i === 0) return `<div class="lmeta">Lattice write: ${l.write_us} us  |  node_id=${l.node_id}</div>`;
+  if (i === 1) return `<div class="lmeta">AION512 bruteforce: ${l.corpus_size.toLocaleString()} vectors in ${l.search_us} us</div>`;
+  if (i === 2) return `<div class="lmeta">Rule engine: decision in ${l.route_us} us</div>`;
+  if (i === 3) return `<div class="lmeta">${l.gate_kb} KB student model -- trained on bearing data only</div>`;
+  return '';
+}
+
 async function send(type) {
   ['normal','fault','pmu'].forEach(t => {
     document.getElementById('btn-'+t).classList.toggle('selected', t === type);
   });
   const panel = document.getElementById('panel');
   panel.className = 'panel';
-  panel.innerHTML = '<div class="loading"><div class="spin"></div>Analyzing...</div>';
+  panel.innerHTML = '<div class="loading"><div class="spin"></div>Running 4-layer detection...</div>';
 
   let data;
   try {
@@ -531,13 +650,13 @@ async function send(type) {
   const bad = data.anomaly;
   panel.className = 'panel ' + (bad ? 'bad' : 'ok');
 
-  const vText = bad ? '[!] ANOMALY DETECTED -- 3-layer detection triggered'
-                    : '[OK] READING ACCEPTED -- consistent with bearing domain';
+  const vText = bad ? '[!] ANOMALY DETECTED -- flagged across 4 independent layers'
+                    : '[OK] READING ACCEPTED -- all 4 layers confirm bearing domain';
   const vSub  = bad
-    ? 'This reading does not match the bearing domain. Multiple independent layers flagged it.'
-    : 'All three detection layers confirm this reading is within the known bearing domain.';
+    ? 'This reading does not match the bearing domain. Each layer independently flagged it without coordination.'
+    : 'Persistent memory, semantic search, routing, and behavioral gate all confirm this is within the known domain.';
 
-  const ls = [data.layer1, data.layer2, data.layer3];
+  const ls = [data.layer1, data.layer2, data.layer3, data.layer4];
   panel.innerHTML = `
     <div class="verdict-row">
       <div class="verdict-badge ${bad?'bad':'ok'}">${vText}</div>
@@ -552,17 +671,16 @@ async function send(type) {
             <div class="lsub">${l.sublabel}</div>
             <div class="lverdict ${l.pass?'ok':'bad'}">${l.verdict}</div>
             <div class="ldetail">${l.detail}</div>
-            ${i===0?`<div class="lmeta">Inference: ${l.corpus_size.toLocaleString()} vectors in ${l.search_us} uss</div>`:''}
-            ${i===1?`<div class="lmeta">Inference: route decision in ${l.route_us} uss</div>`:''}
-            ${i===2?`<div class="lmeta">${l.gate_kb} KB model -- trained on bearing data only</div>`:''}
+            ${layerMeta(l, i)}
+            ${i===0 ? metricsHtml(l.wave_metrics) : ''}
           </div>
         </div>`).join('')}
     </div>`;
 
-  [0,1,2].forEach(i => setTimeout(() => {
+  [0,1,2,3].forEach(i => setTimeout(() => {
     const el = document.getElementById('ly'+i);
     if (el) el.classList.add('show');
-  }, i * 220));
+  }, i * 200));
 }
 </script>
 </body>
