@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Synrix Interactive Demo — three-layer live anomaly detection.
+Synrix Interactive Demo -- three-layer live anomaly detection.
 
 Send different types of sensor readings and watch the system detect cross-domain
 anomalies in real time through three independent layers.
@@ -38,7 +38,7 @@ from experiments.scm_v0_1.scm_tiny.artifact import ScmTinyArtifact
 from experiments.scm_v0_1.scm_tiny.dataset import route_to_index
 from experiments.scm_v0_1.scm_tiny.templates import template_id_from_teacher, template_to_index
 
-# ── Config ─────────────────────────────────────────────────────────────────────
+# -- Config ---------------------------------------------------------------------
 
 _BUILD       = Path(os.environ.get("SYNRIX_LIB_PATH", str(_ROOT / "build")))
 _GATE_FIX    = _ROOT / "analysis/formal_artifacts/scm_tiny/demo_gate_fixture.json"
@@ -52,7 +52,7 @@ _CORPUS_NPZ  = _ROOT / "analysis/cwru_corpus.npz"
 AION_VEC_DIM = 512
 PORT         = 5050
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# -- Helpers --------------------------------------------------------------------
 
 def _encode_512(feat: np.ndarray) -> np.ndarray:
     v    = np.zeros(AION_VEC_DIM, dtype=np.float32)
@@ -64,7 +64,7 @@ def _encode_512(feat: np.ndarray) -> np.ndarray:
     n = np.linalg.norm(v)
     return (v / n) if n > 0 else v
 
-# ── Load native libraries ───────────────────────────────────────────────────────
+# -- Load native libraries -------------------------------------------------------
 
 print("\n[STARTUP] Loading Synrix libraries...", flush=True)
 
@@ -75,7 +75,7 @@ _aion_path   = _BUILD / f"libaion_semantic_index{_lib_ext}"
 
 for p in (_synrix_path, _aion_path):
     if not p.is_file():
-        print(f"  [ERROR] {p.name} not found — run: make setup", flush=True)
+        print(f"  [ERROR] {p.name} not found -- run: make setup", flush=True)
         sys.exit(1)
 
 _lib  = ctypes.CDLL(str(_synrix_path))
@@ -135,7 +135,7 @@ _aion.semantic_vector_indexing_system_search_similar.argtypes = [
 print(f"  libsynrix loaded  ({_synrix_path.stat().st_size // 1024} KB)", flush=True)
 print(f"  libaion loaded    ({_aion_path.stat().st_size // 1024} KB)", flush=True)
 
-# ── Load CWRU corpus ───────────────────────────────────────────────────────────
+# -- Load CWRU corpus -----------------------------------------------------------
 
 print("[STARTUP] Loading CWRU corpus...", flush=True)
 
@@ -152,7 +152,7 @@ N_CORPUS       = len(_corpus_vecs)
 N_CLASSES      = len(set(_corpus_labels.tolist()))
 print(f"  {N_CORPUS:,} vectors  |  {N_CLASSES} fault classes", flush=True)
 
-# ── Build AION512 index ────────────────────────────────────────────────────────
+# -- Build AION512 index --------------------------------------------------------
 
 print(f"[STARTUP] Indexing {N_CORPUS:,} bearing vectors (AION512)...", flush=True)
 
@@ -197,7 +197,7 @@ if c_sz != py_sz:
     print(f"  [ERROR] _AionQuery struct mismatch: ctypes={py_sz} C={c_sz}", flush=True)
     sys.exit(1)
 
-# ── Load fixture packets ───────────────────────────────────────────────────────
+# -- Load fixture packets -------------------------------------------------------
 
 print("[STARTUP] Loading packets and routing stack...", flush=True)
 
@@ -218,11 +218,11 @@ _baseline_route = str(_teacher.route(cwru_pkts[0]).route)
 print(f"  Packets ready   |  baseline_route={_baseline_route}", flush=True)
 print(f"  Gate loaded     |  {_gate_kb} KB CWRU domain expert", flush=True)
 
-# ── Thread lock (AION search is not reentrant) ─────────────────────────────────
+# -- Thread lock (AION search is not reentrant) ---------------------------------
 
 _aion_lock = threading.Lock()
 
-# ── Core detection ─────────────────────────────────────────────────────────────
+# -- Core detection -------------------------------------------------------------
 
 def _aion_search(vec: np.ndarray) -> tuple[list[dict], float]:
     """Query AION512 bruteforce; returns (top_matches, search_us)."""
@@ -265,20 +265,20 @@ def analyze_reading(rtype: str) -> dict:
 
     Layer 1 (AION512 similarity) uses the correct vector space for each type:
       - bearing buttons: query with an actual corpus vector (vibration signal space)
-                         so similarity is high (~0.99) — in domain
+                         so similarity is high (~0.99) -- in domain
       - pmu button:      query with featurized SCM features (different space)
-                         so similarity is low (~0.10) — foreign domain
+                         so similarity is low (~0.10) -- foreign domain
 
     Layers 2-3 use the SCM packet for routing and gate checks.
     """
     # Layer 1: pick the right query vector
     if rtype in _REPR_VEC:
-        # Bearing reading: use a stored corpus vector — will find near-identical neighbours
+        # Bearing reading: use a stored corpus vector -- will find near-identical neighbours
         aion_vec = _REPR_VEC[rtype]
         pkt      = cwru_pkts[0] if rtype == "normal" else cwru_pkts[2]
         feat     = featurize_packets([pkt])
     else:
-        # PMU: encode the SCM packet's feature vector — projects into a foreign space
+        # PMU: encode the SCM packet's feature vector -- projects into a foreign space
         feat     = featurize_packets([wave_pkt])
         aion_vec = _encode_512(feat[0])
         pkt      = wave_pkt
@@ -308,7 +308,7 @@ def analyze_reading(rtype: str) -> dict:
         "anomaly": anomaly,
         "layer1": {
             "name": "Semantic Similarity",
-            "sublabel": f"AION512 — {N_CORPUS:,} bearing vectors indexed",
+            "sublabel": f"AION512 -- {N_CORPUS:,} bearing vectors indexed",
             "pass": in_domain,
             "best_sim": best_sim,
             "top_matches": top_matches,
@@ -316,9 +316,9 @@ def analyze_reading(rtype: str) -> dict:
             "corpus_size": N_CORPUS,
             "verdict": "IN DOMAIN" if in_domain else "FOREIGN DOMAIN",
             "detail": (
-                f"Best match {best_sim:.4f} — consistent with bearing corpus"
+                f"Best match {best_sim:.4f} -- consistent with bearing corpus"
                 if in_domain else
-                f"Best match only {best_sim:.4f} — unlike any of the {N_CORPUS:,} bearing records"
+                f"Best match only {best_sim:.4f} -- unlike any of the {N_CORPUS:,} bearing records"
             ),
         },
         "layer2": {
@@ -328,11 +328,11 @@ def analyze_reading(rtype: str) -> dict:
             "route": route,
             "expected": _baseline_route,
             "route_us": route_us,
-            "verdict": f"Route '{route}' — expected" if normal_route else f"Route '{route}' — anomalous",
+            "verdict": f"Route '{route}' -- expected" if normal_route else f"Route '{route}' -- anomalous",
             "detail": (
-                f"Assigned to '{route}' — matches all historical bearing records"
+                f"Assigned to '{route}' -- matches all historical bearing records"
                 if normal_route else
-                f"Expected '{_baseline_route}' but got '{route}' — different execution class"
+                f"Expected '{_baseline_route}' but got '{route}' -- different execution class"
             ),
         },
         "layer3": {
@@ -340,16 +340,16 @@ def analyze_reading(rtype: str) -> dict:
             "sublabel": f"{_gate_kb} KB student model trained on bearing data only",
             "pass": gate_ok,
             "gate_kb": _gate_kb,
-            "verdict": "Student agrees with teacher" if gate_ok else "Student disagrees — MISMATCH",
+            "verdict": "Student agrees with teacher" if gate_ok else "Student disagrees -- MISMATCH",
             "detail": (
                 "Learned model matches teacher decision on route and template"
                 if gate_ok else
-                f"The {_gate_kb} KB model has never seen this decision pattern — it was trained on bearing data only"
+                f"The {_gate_kb} KB model has never seen this decision pattern -- it was trained on bearing data only"
             ),
         },
     }
 
-# ── Stats endpoint payload ─────────────────────────────────────────────────────
+# -- Stats endpoint payload -----------------------------------------------------
 
 _STATS = json.dumps({
     "n_corpus":   N_CORPUS,
@@ -360,14 +360,14 @@ _STATS = json.dumps({
     "platform":   f"{platform.machine()} / {platform.system()}",
 }).encode()
 
-# ── HTML ───────────────────────────────────────────────────────────────────────
+# -- HTML -----------------------------------------------------------------------
 
 _HTML_STR = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Synrix — Live Edge Inference Demo</title>
+<title>Synrix -- Live Edge Inference Demo</title>
 <style>
 :root{
   --bg:#07070f;--card:#0e0e1c;--border:#1c1c34;
@@ -487,6 +487,12 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
     H-IVF loaded from NVMe in <span id="fOpen">&#8230;</span> ms &nbsp;&middot;&nbsp;
     <span id="fPlatform">&#8230;</span>
   </div>
+  <div class="stats" style="margin-top:6px;font-style:italic">
+    Note: per-layer timings are C-library inference measurements only &mdash;
+    end-to-end request latency includes Python HTTP and browser round-trip overhead
+    not present in a production deployment. See <code>docs/BENCHMARK_RECEIPTS.md</code>
+    for production throughput numbers from the Jetson Orin Nano.
+  </div>
 
 </div>
 <script>
@@ -507,7 +513,7 @@ async function send(type) {
   });
   const panel = document.getElementById('panel');
   panel.className = 'panel';
-  panel.innerHTML = '<div class="loading"><div class="spin"></div>Analyzing…</div>';
+  panel.innerHTML = '<div class="loading"><div class="spin"></div>Analyzing...</div>';
 
   let data;
   try {
@@ -525,8 +531,8 @@ async function send(type) {
   const bad = data.anomaly;
   panel.className = 'panel ' + (bad ? 'bad' : 'ok');
 
-  const vText = bad ? '⚡ ANOMALY DETECTED — 3-layer detection triggered'
-                    : '✓ READING ACCEPTED — consistent with bearing domain';
+  const vText = bad ? '[!] ANOMALY DETECTED -- 3-layer detection triggered'
+                    : '[OK] READING ACCEPTED -- consistent with bearing domain';
   const vSub  = bad
     ? 'This reading does not match the bearing domain. Multiple independent layers flagged it.'
     : 'All three detection layers confirm this reading is within the known bearing domain.';
@@ -546,9 +552,9 @@ async function send(type) {
             <div class="lsub">${l.sublabel}</div>
             <div class="lverdict ${l.pass?'ok':'bad'}">${l.verdict}</div>
             <div class="ldetail">${l.detail}</div>
-            ${i===0?`<div class="lmeta">Searched ${l.corpus_size.toLocaleString()} vectors in ${l.search_us} μs</div>`:''}
-            ${i===1?`<div class="lmeta">Route decision in ${l.route_us} μs</div>`:''}
-            ${i===2?`<div class="lmeta">${l.gate_kb} KB model — trained on bearing data only</div>`:''}
+            ${i===0?`<div class="lmeta">Inference: ${l.corpus_size.toLocaleString()} vectors in ${l.search_us} uss</div>`:''}
+            ${i===1?`<div class="lmeta">Inference: route decision in ${l.route_us} uss</div>`:''}
+            ${i===2?`<div class="lmeta">${l.gate_kb} KB model -- trained on bearing data only</div>`:''}
           </div>
         </div>`).join('')}
     </div>`;
@@ -563,7 +569,7 @@ async function send(type) {
 </html>"""
 _HTML = _HTML_STR.encode()
 
-# ── HTTP handler ───────────────────────────────────────────────────────────────
+# -- HTTP handler ---------------------------------------------------------------
 
 class _Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
@@ -594,7 +600,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-# ── Start ──────────────────────────────────────────────────────────────────────
+# -- Start ----------------------------------------------------------------------
 
 print(f"\n[READY]   http://localhost:{PORT}", flush=True)
 print(f"          Platform : {platform.machine()} / {platform.system()}", flush=True)

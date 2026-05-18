@@ -78,6 +78,8 @@ the 11 KB learned model — trained only on bearing data — disagrees with the 
 
 Startup takes ~15 seconds while 94,795 vectors are loaded into AION512.
 
+> **Note on latency:** The per-layer timings shown in the UI are C-library inference measurements only. End-to-end request latency includes Python HTTP handling and browser round-trip overhead not present in a production deployment. See `docs/BENCHMARK_RECEIPTS.md` for production throughput numbers from the Jetson Orin Nano.
+
 ---
 
 ### End-to-end pipeline expected output
