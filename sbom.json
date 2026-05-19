@@ -1,0 +1,124 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "serialNumber": "urn:uuid:synrix-e85c37b2e-1779216427",
+  "metadata": {
+    "timestamp": "2026-05-19T18:47:07.275203+00:00",
+    "component": {
+      "bom-ref": "synrix-kernel",
+      "type": "library",
+      "name": "synrix-kernel",
+      "version": "1.1.5+git.e85c37b2e"
+    },
+    "tools": [
+      {
+        "name": "generate_sbom.py",
+        "version": "1.0"
+      }
+    ]
+  },
+  "components": [
+    {
+      "bom-ref": "synrix-kernel",
+      "type": "library",
+      "name": "synrix-kernel",
+      "version": "1.1.5+git.e85c37b2e",
+      "description": "NebulOS Synrix kernel Python bindings (lattice, AION512, HRR, SCM)",
+      "licenses": [
+        {
+          "license": {
+            "name": "Proprietary"
+          }
+        }
+      ],
+      "purl": "pkg:generic/synrix-kernel@1.1.5+git.e85c37b2e"
+    },
+    {
+      "bom-ref": "libsynrix",
+      "type": "library",
+      "name": "libsynrix",
+      "version": "1.1.5+git.e85c37b2e",
+      "description": "Persistent lattice + WAL + seqlock runtime (C99)",
+      "licenses": [
+        {
+          "license": {
+            "name": "Proprietary"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b1d48acdbaed877e3d90596e75b115694cf07f97ff5ac5d4136502195d442846"
+        }
+      ]
+    },
+    {
+      "bom-ref": "libaion_semantic_index",
+      "type": "library",
+      "name": "libaion_semantic_index",
+      "version": "1.1.5+git.e85c37b2e",
+      "description": "AION512 semantic vector index (LSH/IVF, NEON SDOT)",
+      "licenses": [
+        {
+          "license": {
+            "name": "Proprietary"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "5af3bdd8f4b86e2eb37c1efb95ef484b383179eabfbd831acdc32ebfb9ef5588"
+        }
+      ]
+    },
+    {
+      "bom-ref": "liblattice_expert_train",
+      "type": "library",
+      "name": "liblattice_expert_train",
+      "version": "1.1.5+git.e85c37b2e",
+      "description": "C softmax-linear trainer for behavioral gate",
+      "licenses": [
+        {
+          "license": {
+            "name": "Proprietary"
+          }
+        }
+      ],
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "4649ef77f032d739c8d95f1272f675cde51ab158750e3aff1f3d00a0c4bae3e2"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pypi:numpy",
+      "type": "library",
+      "name": "numpy",
+      "version": ">=1.21.0",
+      "purl": "pkg:pypi/numpy@1.21.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://pypi.org/project/numpy/"
+        }
+      ]
+    },
+    {
+      "bom-ref": "pypi:scipy",
+      "type": "library",
+      "name": "scipy",
+      "version": ">=1.7.0",
+      "purl": "pkg:pypi/scipy@1.7.0",
+      "externalReferences": [
+        {
+          "type": "distribution",
+          "url": "https://pypi.org/project/scipy/"
+        }
+      ]
+    }
+  ]
+}
