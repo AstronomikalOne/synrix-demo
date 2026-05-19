@@ -199,7 +199,8 @@ def main() -> None:  # noqa: C901
                                                ctypes.c_uint32, ctypes.c_uint32]
         _lib.lattice_add_node.restype       = ctypes.c_uint64
         _lib.lattice_add_node.argtypes      = [ctypes.c_void_p, ctypes.c_int,
-                                               ctypes.c_char_p, ctypes.c_char_p]
+                                               ctypes.c_char_p, ctypes.c_char_p,
+                                               ctypes.c_uint64]   # parent_id (0 = root)
         _lib.lattice_get_node_data.restype  = ctypes.c_int
         _lib.lattice_get_node_data.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
                                                ctypes.c_void_p]
@@ -331,7 +332,7 @@ def main() -> None:  # noqa: C901
 
         print("  Initializing persistent lattice + operational memory...", end="", flush=True)
         _lattice_buf = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
-        max_nodes    = 65_536   # working behavioral memory — independent of run length
+        max_nodes    = min(count // 2 + 1024, 500_000)  # enough for full write rate
         if _lib.lattice_init(_lattice_buf, lat_path.encode(), max_nodes, 0) != 0:
             print("\n[ERROR] lattice_init failed")
             sys.exit(1)
@@ -537,8 +538,10 @@ def main() -> None:  # noqa: C901
         #    HALT and MITIGATE always written; RUN sampled every 100 events.
         if not dry_run and (state != "RUN" or i % 100 == 0):
             nid = int(_lib.lattice_add_node(
-                _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data))
-            if nid != 0:
+                _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data,
+                ctypes.c_uint64(0)))   # parent_id = 0 (root)
+            # 0 or UINT64_MAX both mean failure (lattice full or error).
+            if 0 < nid < 0xFFFF_FFFF_FFFF_FFFF:
                 _aion.aion_vec_sidecar_append(
                     _sidecar_hdl, ctypes.c_uint32(nid),
                     aion_vec.ctypes.data_as(ctypes.c_void_p))
