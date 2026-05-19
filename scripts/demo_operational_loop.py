@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import collections
 import ctypes
 import json
 import os
@@ -220,6 +221,17 @@ def main() -> None:  # noqa: C901
                                                                         ctypes.c_char_p]
         _aion.semantic_vector_indexing_system_destroy.restype  = None
         _aion.semantic_vector_indexing_system_destroy.argtypes = [ctypes.c_void_p]
+
+        # Raw sidecar API — append-only disk persistence without a live flat index.
+        # Used for the write path during this run; flat index is only built on --resume.
+        _aion.aion_vec_sidecar_open.restype   = ctypes.c_int
+        _aion.aion_vec_sidecar_open.argtypes  = [ctypes.c_char_p,
+                                                  ctypes.POINTER(ctypes.c_void_p)]
+        _aion.aion_vec_sidecar_append.restype  = ctypes.c_int
+        _aion.aion_vec_sidecar_append.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
+                                                   ctypes.c_void_p]
+        _aion.aion_vec_sidecar_close.restype   = ctypes.c_int
+        _aion.aion_vec_sidecar_close.argtypes  = [ctypes.c_void_p]
         _aion.vector_similarity_query_sizeof.restype  = ctypes.c_size_t
         _aion.vector_similarity_query_sizeof.argtypes = []
         _aion.semantic_vector_indexing_system_search_similar.restype  = ctypes.c_int
@@ -288,27 +300,29 @@ def main() -> None:  # noqa: C901
     # persisted via sidecar so past decisions survive restarts and remain
     # semantically queryable. Both use the same kernel — one unified memory.
 
-    written_node_ids: list[int] = []
-    _op_aion_buf   = None
-    _prior_events  = 0
+    # WAL probe: track first/mid/last written node ID as scalars — O(1) memory.
+    _nid_first    = 0
+    _nid_mid      = 0
+    _nid_last     = 0
+    nodes_written = 0
+    _sidecar_hdl  = ctypes.c_void_p(None)
+    _prior_events = 0
 
     # Sidecar row geometry (matches aion_vec_row_t in aion_vec_sidecar.h):
     #   uint32_t node_id + uint8_t valid + uint8_t[3] reserved + float[512]
-    _SIDECAR_HEADER  = 32
-    _SIDECAR_ROW     = 4 + 1 + 3 + 512 * 4  # 2056 bytes
+    _SIDECAR_HEADER = 32
+    _SIDECAR_ROW    = 4 + 1 + 3 + 512 * 4  # 2056 bytes
 
     if not dry_run:
         _lattice_tmpdir = tempfile.mkdtemp(prefix="synrix_oploop_")
         lat_path        = os.path.join(_lattice_tmpdir, "oploop.lat")
 
-        # --resume: use the caller-supplied sidecar path (persistent across runs).
-        # Default: ephemeral sidecar in the temp dir (cleaned up at exit).
+        # --resume: persistent sidecar supplied by caller; survives this run.
+        # Default: ephemeral sidecar in the temp dir, cleaned up at exit.
         if args.resume:
-            sidecar_path    = os.path.abspath(args.resume)
-            _sidecar_owned  = False   # caller owns the file; don't delete it
+            sidecar_path = os.path.abspath(args.resume)
         else:
-            sidecar_path    = os.path.join(_lattice_tmpdir, "oploop.avec")
-            _sidecar_owned  = True
+            sidecar_path = os.path.join(_lattice_tmpdir, "oploop.avec")
 
         # Count events already in the sidecar before we open it.
         if os.path.isfile(sidecar_path):
@@ -322,20 +336,16 @@ def main() -> None:  # noqa: C901
             print("\n[ERROR] lattice_init failed")
             sys.exit(1)
 
-        op_aion_sz   = _aion.semantic_vector_indexing_system_sizeof()
-        _op_aion_buf = ctypes.create_string_buffer(op_aion_sz)
-        if _aion.semantic_vector_indexing_system_create(_op_aion_buf) != 0:
-            print("\n[ERROR] operational aion_create failed")
-            sys.exit(1)
-        # open_sidecar: creates the file if absent, replays existing rows if present.
-        if _aion.semantic_vector_indexing_system_open_sidecar(
-                _op_aion_buf, sidecar_path.encode()) != 0:
-            print("\n[ERROR] operational aion open_sidecar failed")
+        # Raw sidecar: disk-only append path — no in-memory flat index growth.
+        # The flat index is rebuilt only on --resume via open_sidecar replay.
+        if _aion.aion_vec_sidecar_open(sidecar_path.encode(),
+                                        ctypes.byref(_sidecar_hdl)) != 0:
+            print("\n[ERROR] aion_vec_sidecar_open failed")
             sys.exit(1)
 
         def _cleanup() -> None:
-            if _op_aion_buf is not None:
-                _aion.semantic_vector_indexing_system_destroy(_op_aion_buf)
+            if _sidecar_hdl:
+                _aion.aion_vec_sidecar_close(_sidecar_hdl)
             if _lattice_buf is not None:
                 _lib.lattice_cleanup(_lattice_buf)
             if _lattice_tmpdir is not None:
@@ -433,7 +443,7 @@ def main() -> None:  # noqa: C901
     print(f"  [RUN] continue  [MITIGATE] local action  [HALT] stop+preserve")
     print()
 
-    latencies:   list[int] = []
+    latencies    = collections.deque(maxlen=5_000)  # rolling window — bounded memory
     state_counts = {"RUN": 0, "MITIGATE": 0, "HALT": 0}
     pool_cursor  = 0
     start_time   = time.monotonic()
@@ -522,17 +532,22 @@ def main() -> None:  # noqa: C901
         state_counts[state] += 1
 
         # 5. Persist notable state to unified behavioral memory.
-        #    Lattice stores symbolic state (name + data, WAL-backed).
-        #    Operational AION sidecar stores the vector — same node_id links them.
+        #    Lattice: symbolic state (name + data, WAL-backed).
+        #    Sidecar: vector embedding on disk — same node_id links them.
         #    HALT and MITIGATE always written; RUN sampled every 100 events.
         if not dry_run and (state != "RUN" or i % 100 == 0):
             nid = int(_lib.lattice_add_node(
                 _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data))
             if nid != 0:
-                written_node_ids.append(nid)
-                _aion.semantic_vector_indexing_system_add_embedding_aion512(
-                    _op_aion_buf, ctypes.c_uint32(nid),
+                _aion.aion_vec_sidecar_append(
+                    _sidecar_hdl, ctypes.c_uint32(nid),
                     aion_vec.ctypes.data_as(ctypes.c_void_p))
+                nodes_written += 1
+                if nodes_written == 1:
+                    _nid_first = nid
+                if nodes_written % 50 == 25:   # sample a stable middle candidate
+                    _nid_mid = nid
+                _nid_last = nid
 
         # ── Checkpoint (every 1000 events) ───────────────────────────────────
         if i % 1000 == 999 and len(latencies) >= 1000:
@@ -584,16 +599,11 @@ def main() -> None:  # noqa: C901
 
     # ── Post-halt continuity proof ────────────────────────────────────────────
 
-    nodes_written   = len(written_node_ids)
-    nodes_verified  = 0
-    probe_count     = 0
+    nodes_verified = 0
+    probe_count    = 0
 
-    if not dry_run and written_node_ids:
-        probe_ids = list({
-            written_node_ids[0],
-            written_node_ids[len(written_node_ids) // 2],
-            written_node_ids[-1],
-        })
+    if not dry_run and nodes_written > 0:
+        probe_ids   = {nid for nid in (_nid_first, _nid_mid, _nid_last) if nid != 0}
         probe_count = len(probe_ids)
         scratch     = ctypes.create_string_buffer(4096)
         for nid in probe_ids:
