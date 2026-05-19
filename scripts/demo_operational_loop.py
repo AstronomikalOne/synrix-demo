@@ -143,6 +143,8 @@ def _parse() -> argparse.Namespace:
                    metavar="SIDECAR",
                    help="path to a prior run's .avec sidecar; replays past decisions "
                         "into operational memory before starting, then appends new events")
+    p.add_argument("--quiet",          action="store_true",
+                   help="suppress [RUN] lines; show only [MITIGATE], [HALT], and [CHKPT]")
     return p.parse_args()
 
 
@@ -579,12 +581,14 @@ def main() -> None:  # noqa: C901
 
         tag = f"[{state}]"
         if state == "RUN":
-            print(f"{tag:<12} ID={event_id:05d} LAT={lat_us}µs  "
-                  f"sim={sim:.4f} route={route:<10} gate={gate_str}", flush=True)
+            if not args.quiet:
+                print(f"{tag:<12} ID={event_id:05d} LAT={lat_us}µs  "
+                      f"sim={sim:.4f} route={route:<10} gate={gate_str}", flush=True)
         elif state == "MITIGATE":
-            print(f"{tag:<12} ID={event_id:05d} LAT={lat_us}µs  "
-                  f"sim={sim:.4f} route={route:<10} gate={gate_str}  "
-                  f"known_fault={nearest_class}", flush=True)
+            if not args.quiet or state_counts["MITIGATE"] % 10 == 1:
+                print(f"{tag:<12} ID={event_id:05d} LAT={lat_us}µs  "
+                      f"sim={sim:.4f} route={route:<10} gate={gate_str}  "
+                      f"known_fault={nearest_class}", flush=True)
         else:
             print(f"{tag:<12} ID={event_id:05d} LAT={lat_us}µs  "
                   f"sim={sim:.4f} route={route:<10} gate={gate_str}", flush=True)
