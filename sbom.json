@@ -2,14 +2,14 @@
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
   "version": 1,
-  "serialNumber": "urn:uuid:synrix-e85c37b2e-1779216427",
+  "serialNumber": "urn:uuid:synrix-a6279e729-1779228681",
   "metadata": {
-    "timestamp": "2026-05-19T18:47:07.275203+00:00",
+    "timestamp": "2026-05-19T22:11:21.003974+00:00",
     "component": {
       "bom-ref": "synrix-kernel",
       "type": "library",
       "name": "synrix-kernel",
-      "version": "1.1.5+git.e85c37b2e"
+      "version": "1.1.5+git.a6279e729"
     },
     "tools": [
       {
@@ -23,7 +23,7 @@
       "bom-ref": "synrix-kernel",
       "type": "library",
       "name": "synrix-kernel",
-      "version": "1.1.5+git.e85c37b2e",
+      "version": "1.1.5+git.a6279e729",
       "description": "NebulOS Synrix kernel Python bindings (lattice, AION512, HRR, SCM)",
       "licenses": [
         {
@@ -32,13 +32,13 @@
           }
         }
       ],
-      "purl": "pkg:generic/synrix-kernel@1.1.5+git.e85c37b2e"
+      "purl": "pkg:generic/synrix-kernel@1.1.5+git.a6279e729"
     },
     {
       "bom-ref": "libsynrix",
       "type": "library",
       "name": "libsynrix",
-      "version": "1.1.5+git.e85c37b2e",
+      "version": "1.1.5+git.a6279e729",
       "description": "Persistent lattice + WAL + seqlock runtime (C99)",
       "licenses": [
         {
@@ -58,7 +58,7 @@
       "bom-ref": "libaion_semantic_index",
       "type": "library",
       "name": "libaion_semantic_index",
-      "version": "1.1.5+git.e85c37b2e",
+      "version": "1.1.5+git.a6279e729",
       "description": "AION512 semantic vector index (LSH/IVF, NEON SDOT)",
       "licenses": [
         {
@@ -78,7 +78,7 @@
       "bom-ref": "liblattice_expert_train",
       "type": "library",
       "name": "liblattice_expert_train",
-      "version": "1.1.5+git.e85c37b2e",
+      "version": "1.1.5+git.a6279e729",
       "description": "C softmax-linear trainer for behavioral gate",
       "licenses": [
         {

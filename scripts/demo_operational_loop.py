@@ -35,6 +35,8 @@ import atexit
 import collections
 import ctypes
 import faulthandler
+import hashlib
+import hmac
 import json
 import os
 import platform
@@ -149,6 +151,41 @@ def _parse() -> argparse.Namespace:
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
+def _verify_sidecar_integrity(sidecar_path: str) -> None:
+    """HMAC-SHA256 integrity check on --resume sidecar. Warns if no .sig; aborts on mismatch."""
+    sig_path = sidecar_path + ".sig"
+    key_path = os.path.join(os.path.dirname(sidecar_path), ".sidecar_key")
+
+    if not os.path.exists(sig_path):
+        print(f"  [integrity] no .sig for sidecar — unverified (legacy or first run)")
+        return
+    if not os.path.exists(key_path):
+        print(f"  [integrity] no key file at {key_path} — skipping HMAC verify")
+        return
+
+    with open(key_path, "rb") as f:
+        key = f.read(32)
+    if len(key) < 32:
+        print(f"  [integrity] key too short — skipping HMAC verify")
+        return
+
+    stored = open(sig_path, "rb").read()
+    if len(stored) != 32:
+        print(f"  [WARN] malformed .sig file ({len(stored)} bytes) — aborting resume")
+        raise SystemExit(1)
+
+    mac = hmac.new(key, digestmod=hashlib.sha256)
+    with open(sidecar_path, "rb") as f:
+        while chunk := f.read(65536):
+            mac.update(chunk)
+
+    if not hmac.compare_digest(mac.digest(), stored):
+        print("  [ERROR] sidecar HMAC mismatch — possible tampering. Aborting.")
+        raise SystemExit(1)
+
+    print(f"  [integrity] sidecar verified ✓")
+
 
 def main() -> None:  # noqa: C901
     args    = _parse()
@@ -327,6 +364,7 @@ def main() -> None:  # noqa: C901
         # Default: ephemeral sidecar in the temp dir, cleaned up at exit.
         if args.resume:
             sidecar_path = os.path.abspath(args.resume)
+            _verify_sidecar_integrity(sidecar_path)
         else:
             sidecar_path = os.path.join(_lattice_tmpdir, "oploop.avec")
 
