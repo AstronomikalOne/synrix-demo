@@ -557,7 +557,7 @@ def main() -> None:  # noqa: C901
 
         # ── Checkpoint (every 1000 events) ───────────────────────────────────
         if i % 1000 == 999 and len(latencies) >= 1000:
-            window    = latencies[-1000:]
+            window    = list(latencies)[-1000:]
             w_p50     = int(np.percentile(window, 50))
             elapsed_h = (time.monotonic() - start_time) / 3600
             try:
