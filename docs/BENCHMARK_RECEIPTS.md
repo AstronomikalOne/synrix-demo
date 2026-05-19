@@ -69,3 +69,25 @@ Per-domain specialists trained on 8,000 disjoint rows, gated on 2,000 disjoint r
 |---|---|
 | QPS (aarch64 NEON) | 165,000 |
 | QPS (x86 scalar fallback) | ~20,000–40,000 (hardware-dependent) |
+
+---
+
+## Operational Loop — 500k-event stability run
+
+**Setup:** `demo_operational_loop.py --count 500_000 --seed 42`, Jetson Orin Nano, aarch64/NEON, bruteforce retrieval over 94,795 CWRU vectors. See `docs/LONG_RUN_RECEIPT_v0.md` for full receipt.
+
+| Metric | Value |
+|---|---|
+| Total events | 500,000 |
+| Runtime | 1.09 h |
+| p50 latency | 7,990 µs |
+| p95 latency | 8,256 µs |
+| p99 latency | 8,561 µs |
+| RUN (in-domain, normal) | 359,864 (71.97%) |
+| MITIGATE (in-domain, fault) | 140,135 (28.03%) |
+| HALT (false positive) | 0 |
+| HALT (injected breach) | 1 — fires correctly |
+| WAL continuity | 3/3 nodes read back after halt |
+| Behavioral memory | 143,655 events on disk (sidecar) |
+
+p50 was flat across the full 1.09h run with no monotonic drift. State distribution matches design target (72%/28%) within 0.03%.

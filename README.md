@@ -120,6 +120,46 @@ Startup takes ~15 seconds while 94,795 vectors are loaded into AION512.
 
 ---
 
+### Operational loop — continuous behavioral enforcement
+
+The flagship demo. Runs 1000 events through the full stack at 7ms each, enforcing behavioral boundaries in real time. MITIGATE fires on known faults without stopping. HALT fires when all three independent layers agree the input is foreign. After halt, WAL continuity is proven by node read-back.
+
+```bash
+# Bare-metal (Jetson — full NEON path, ~7ms p50)
+PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_operational_loop.py --count 1000 --quiet
+
+# Docker (x86_64 scalar path, ~15ms p50)
+docker run --rm synrix-gate python3 scripts/demo_operational_loop.py --count 1000 --quiet
+
+# Dry-run (no native libs required)
+docker run --rm synrix-gate python3 scripts/demo_operational_loop.py --dry-run
+```
+
+`--quiet` suppresses `[RUN]` lines and samples every 10th `[MITIGATE]` — recommended for demo recording. Remove it to see every event.
+
+Expected output (quiet mode):
+
+```
+[MITIGATE]   ID=01002 LAT=7166µs  sim=1.0004 route=mixed      gate=agree  known_fault=outer_021
+[MITIGATE]   ID=01046 LAT=7446µs  sim=1.0006 route=mixed      gate=agree  known_fault=inner_014
+...
+[CHKPT]      events=0001000 elapsed=0.00h  p50_1k=6956µs  rss=306MB  run=719  mit=280
+[HALT]       ID=02000 LAT=6608µs  sim=0.0981 route=semantic   gate=mismatch
+
+  WAL committed         288 events — lattice (symbolic) + sidecar (semantic), 3/3 read back — intact
+  retrieval             low-similarity — 0.0981 < 0.5 threshold
+  route divergence      yes — semantic != mixed
+  behavioral gate       mismatch — outcome outside training distribution
+
+  Events    total=1000  run=719  mitigate=280  halt=1
+  Latency   p50=6956µs  p95=7336µs  p99=7446µs
+  Retrieval bruteforce (94,795 vectors)
+```
+
+500k-event stability receipt: see `docs/LONG_RUN_RECEIPT_v0.md` and `docs/BENCHMARK_RECEIPTS.md`.
+
+---
+
 ### Autonomous agent loop (terminal stream)
 
 A terminal demo showing Synrix as an agent substrate — streams 1000 events through the full stack (lattice write → AION512 search → SCM routing → behavioral gate), then halts and freezes state when a foreign reading breaches the domain manifold.
@@ -186,7 +226,7 @@ With `--ivf`: p50 drops to ~1.5ms after a ~2-minute K-means build (320 clusters,
   Step 5 — Behavioral gate: WAVE_PMU_READING  ✗ MISMATCH  ← gate catches it!
 ```
 
-Throughput numbers are from a Jetson Orin Nano (aarch64 / NEON). x86 will be lower — the dispatch banner tells you which path is active. The e2e pipeline requires `libaion_semantic_index.so` — currently included for `linux-aarch64` only (see Platform support).
+Throughput numbers are from a Jetson Orin Nano (aarch64 / NEON). x86 will be lower — the dispatch banner tells you which path is active.
 
 ---
 
@@ -314,7 +354,7 @@ The C source for all native libraries (`libsynrix.so`, `libaion_semantic_index.s
 | Platform | Gate demo | E2E pipeline |
 |---|---|---|
 | `linux-aarch64` (Jetson, Raspberry Pi 5) | ✓ | ✓ |
-| `linux-x86_64` | ✓ | — (`libaion_semantic_index.so` not yet bundled) |
+| `linux-x86_64` | ✓ | ✓ (scalar path; see `docs/BUILDING.md`) |
 | `darwin-arm64`, `win32-x86_64` | contact for access | contact for access |
 
 See [`docs/BUILDING.md`](docs/BUILDING.md) for details.

@@ -27,6 +27,9 @@ No coordination between layers. Each reaches its conclusion independently.
 # Default: 1000 events, breach at event 999
 PYTHONPATH=. python3 scripts/demo_operational_loop.py
 
+# Demo recording — suppress [RUN] lines, sample every 10th [MITIGATE]
+PYTHONPATH=. python3 scripts/demo_operational_loop.py --count 1000 --quiet
+
 # Short smoke run
 PYTHONPATH=. python3 scripts/demo_operational_loop.py --count 50 --breach-at 40
 

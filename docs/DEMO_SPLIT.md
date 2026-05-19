@@ -5,7 +5,7 @@
 **Ships:**
 
 - Prebuilt `lib/*.so` (no C source)
-- `scripts/demo_synrix_gate.py`, `demo_e2e_pipeline.py`, `demo_interactive.py`, `demo_autonomous_loop.py`
+- `scripts/demo_synrix_gate.py`, `demo_e2e_pipeline.py`, `demo_interactive.py`, `demo_autonomous_loop.py`, `demo_operational_loop.py`
 - SCM Python stubs + small NPZ weights
 - Docker image
 - Screen record: `make demo-screen-record`
