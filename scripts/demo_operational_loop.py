@@ -279,7 +279,7 @@ def main() -> None:  # noqa: C901
         _lattice_tmpdir = tempfile.mkdtemp(prefix="synrix_oploop_")
         lat_path        = os.path.join(_lattice_tmpdir, "oploop.lat")
         _lattice_buf    = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
-        max_nodes       = min(count + 256, 1_100_000)
+        max_nodes       = 65_536   # working behavioral memory — independent of run length
         if _lib.lattice_init(_lattice_buf, lat_path.encode(), max_nodes, 0) != 0:
             print("\n[ERROR] lattice_init failed")
             sys.exit(1)
@@ -420,14 +420,7 @@ def main() -> None:  # noqa: C901
 
         t0 = time.perf_counter_ns()
 
-        # 1. Persist to lattice
-        if not dry_run:
-            nid = int(_lib.lattice_add_node(
-                _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data))
-            if nid != 0:
-                written_node_ids.append(nid)
-
-        # 2. Retrieve nearest memory
+        # 1. Retrieve nearest memory
         sim, nearest_idx = _search(aion_vec)
 
         if not dry_run and not is_breach and sim == 0.0:
@@ -438,11 +431,11 @@ def main() -> None:  # noqa: C901
         nearest_class = str(corp_labels[nearest_idx]) \
             if 0 <= nearest_idx < N_CORPUS else "unknown"
 
-        # 3. Route structurally
+        # 2. Route structurally
         out   = teacher.route(pkt)
         route = str(out.route)
 
-        # 4. Verify with domain expert
+        # 3. Verify with domain expert
         y_r     = route_to_index(out.route)
         y_t     = template_to_index(template_id_from_teacher(pkt, out))
         r_pred  = pred.route.predict_indices(feat)[0]
@@ -452,7 +445,7 @@ def main() -> None:  # noqa: C901
         lat_us = (time.perf_counter_ns() - t0) // 1000
         latencies.append(lat_us)
 
-        # 5. Aggregate into state decision
+        # 4. Aggregate into state decision
         in_domain = sim >= SIM_DOMAIN_THRESH
         route_ok  = (route == baseline_route)
         gate_str  = "agree" if gate_ok else "mismatch"
@@ -473,6 +466,14 @@ def main() -> None:  # noqa: C901
             state = "RUN"
 
         state_counts[state] += 1
+
+        # 5. Persist notable state to lattice (behavioral memory, not event log)
+        #    HALT and MITIGATE always written; RUN sampled every 100 events.
+        if not dry_run and (state != "RUN" or i % 100 == 0):
+            nid = int(_lib.lattice_add_node(
+                _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data))
+            if nid != 0:
+                written_node_ids.append(nid)
 
         # ── Checkpoint (every 1000 events) ───────────────────────────────────
         if i % 1000 == 999 and len(latencies) >= 1000:
@@ -557,7 +558,7 @@ def main() -> None:  # noqa: C901
         print(f"  HALT at ID={halt_id:05d}")
         print()
         if not dry_run:
-            continuity = f"{nodes_written} nodes written, {nodes_verified}/{probe_count} sampled read back — lattice intact"
+            continuity = f"{nodes_written} notable events committed, {nodes_verified}/{probe_count} sampled read back — lattice intact"
         else:
             continuity = "[DRY-RUN — no lattice writes]"
         print(f"  WAL committed         {continuity}")

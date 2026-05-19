@@ -63,7 +63,7 @@ make demo-operational-loop
 After HALT:
 
 ```
-  WAL committed         26 nodes written, 3/3 sampled read back — lattice intact
+  WAL committed         26 notable events committed, 3/3 sampled read back — lattice intact
   retrieval             low-similarity — 0.0981 < 0.5 threshold
   route divergence      yes — semantic != mixed
   behavioral gate       mismatch — outcome outside training distribution
