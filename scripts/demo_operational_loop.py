@@ -141,7 +141,7 @@ def main() -> None:  # noqa: C901
     rng     = np.random.default_rng(args.seed)
 
     if args.duration_hours is not None:
-        count        = 10_000_000
+        count        = 100_000_000   # far beyond 24h at any retrieval speed
         duration_end: float | None = time.monotonic() + args.duration_hours * 3600.0
     else:
         count        = max(1, args.count)
@@ -424,7 +424,8 @@ def main() -> None:  # noqa: C901
         if not dry_run:
             nid = int(_lib.lattice_add_node(
                 _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data))
-            written_node_ids.append(nid)
+            if nid != 0:
+                written_node_ids.append(nid)
 
         # 2. Retrieve nearest memory
         sim, nearest_idx = _search(aion_vec)
@@ -472,6 +473,19 @@ def main() -> None:  # noqa: C901
             state = "RUN"
 
         state_counts[state] += 1
+
+        # ── Checkpoint (every 1000 events) ───────────────────────────────────
+        if i % 1000 == 999 and len(latencies) >= 1000:
+            window    = latencies[-1000:]
+            w_p50     = int(np.percentile(window, 50))
+            elapsed_h = (time.monotonic() - start_time) / 3600
+            print(f"[CHKPT]      events={i+1:07d} "
+                  f"elapsed={elapsed_h:.2f}h  p50_1k={w_p50}µs  "
+                  f"run={state_counts['RUN']}  mit={state_counts['MITIGATE']}",
+                  flush=True)
+            _emit({"type": "checkpoint", "events": i + 1,
+                   "elapsed_h": round(elapsed_h, 4), "p50_1k_us": w_p50,
+                   "run": state_counts["RUN"], "mitigate": state_counts["MITIGATE"]})
 
         # ── Output ───────────────────────────────────────────────────────────
 
