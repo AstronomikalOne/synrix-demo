@@ -34,6 +34,7 @@ import argparse
 import atexit
 import collections
 import ctypes
+import faulthandler
 import json
 import os
 import platform
@@ -42,6 +43,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+
+faulthandler.enable()   # dump C-level traceback to stderr on SIGSEGV/SIGBUS
 
 import numpy as np
 
@@ -557,12 +560,19 @@ def main() -> None:  # noqa: C901
             window    = latencies[-1000:]
             w_p50     = int(np.percentile(window, 50))
             elapsed_h = (time.monotonic() - start_time) / 3600
+            try:
+                rss_mb = int(Path("/proc/self/status").read_text()
+                             .split("VmRSS:")[1].split()[0]) // 1024
+            except Exception:
+                rss_mb = -1
             print(f"[CHKPT]      events={i+1:07d} "
                   f"elapsed={elapsed_h:.2f}h  p50_1k={w_p50}µs  "
+                  f"rss={rss_mb}MB  "
                   f"run={state_counts['RUN']}  mit={state_counts['MITIGATE']}",
                   flush=True)
             _emit({"type": "checkpoint", "events": i + 1,
                    "elapsed_h": round(elapsed_h, 4), "p50_1k_us": w_p50,
+                   "rss_mb": rss_mb,
                    "run": state_counts["RUN"], "mitigate": state_counts["MITIGATE"]})
 
         # ── Output ───────────────────────────────────────────────────────────
