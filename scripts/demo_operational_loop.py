@@ -206,6 +206,9 @@ def main() -> None:  # noqa: C901
         _aion.semantic_vector_indexing_system_open_ivf_paged.restype  = ctypes.c_int
         _aion.semantic_vector_indexing_system_open_ivf_paged.argtypes = [ctypes.c_void_p,
                                                                           ctypes.c_char_p]
+        _aion.semantic_vector_indexing_system_open_sidecar.restype  = ctypes.c_int
+        _aion.semantic_vector_indexing_system_open_sidecar.argtypes = [ctypes.c_void_p,
+                                                                        ctypes.c_char_p]
         _aion.semantic_vector_indexing_system_destroy.restype  = None
         _aion.semantic_vector_indexing_system_destroy.argtypes = [ctypes.c_void_p]
         _aion.vector_similarity_query_sizeof.restype  = ctypes.c_size_t
@@ -270,21 +273,39 @@ def main() -> None:  # noqa: C901
     else:
         retrieval_mode = "numpy-cosine [DRY-RUN — not production]"
 
-    # ── Persistent lattice ───────────────────────────────────────────────────
+    # ── Persistent lattice + operational AION sidecar ───────────────────────
+    # The lattice holds symbolic state (named nodes, WAL-backed).
+    # The operational AION holds the vector embedding of each notable event,
+    # persisted via sidecar so past decisions survive restarts and remain
+    # semantically queryable. Both use the same kernel — one unified memory.
 
     written_node_ids: list[int] = []
+    _op_aion_buf = None
 
     if not dry_run:
-        print("  Initializing persistent lattice...", end="", flush=True)
+        print("  Initializing persistent lattice + operational memory...", end="", flush=True)
         _lattice_tmpdir = tempfile.mkdtemp(prefix="synrix_oploop_")
         lat_path        = os.path.join(_lattice_tmpdir, "oploop.lat")
+        sidecar_path    = os.path.join(_lattice_tmpdir, "oploop.avec")
         _lattice_buf    = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
         max_nodes       = 65_536   # working behavioral memory — independent of run length
         if _lib.lattice_init(_lattice_buf, lat_path.encode(), max_nodes, 0) != 0:
             print("\n[ERROR] lattice_init failed")
             sys.exit(1)
 
+        op_aion_sz   = _aion.semantic_vector_indexing_system_sizeof()
+        _op_aion_buf = ctypes.create_string_buffer(op_aion_sz)
+        if _aion.semantic_vector_indexing_system_create(_op_aion_buf) != 0:
+            print("\n[ERROR] operational aion_create failed")
+            sys.exit(1)
+        if _aion.semantic_vector_indexing_system_open_sidecar(
+                _op_aion_buf, sidecar_path.encode()) != 0:
+            print("\n[ERROR] operational aion open_sidecar failed")
+            sys.exit(1)
+
         def _cleanup() -> None:
+            if _op_aion_buf is not None:
+                _aion.semantic_vector_indexing_system_destroy(_op_aion_buf)
             if _lattice_buf is not None:
                 _lib.lattice_cleanup(_lattice_buf)
             if _lattice_tmpdir is not None:
@@ -467,13 +488,18 @@ def main() -> None:  # noqa: C901
 
         state_counts[state] += 1
 
-        # 5. Persist notable state to lattice (behavioral memory, not event log)
+        # 5. Persist notable state to unified behavioral memory.
+        #    Lattice stores symbolic state (name + data, WAL-backed).
+        #    Operational AION sidecar stores the vector — same node_id links them.
         #    HALT and MITIGATE always written; RUN sampled every 100 events.
         if not dry_run and (state != "RUN" or i % 100 == 0):
             nid = int(_lib.lattice_add_node(
                 _lattice_buf, _LATTICE_NODE_TYPE_OBS, node_name, node_data))
             if nid != 0:
                 written_node_ids.append(nid)
+                _aion.semantic_vector_indexing_system_add_embedding_aion512(
+                    _op_aion_buf, ctypes.c_uint32(nid),
+                    aion_vec.ctypes.data_as(ctypes.c_void_p))
 
         # ── Checkpoint (every 1000 events) ───────────────────────────────────
         if i % 1000 == 999 and len(latencies) >= 1000:
@@ -558,7 +584,8 @@ def main() -> None:  # noqa: C901
         print(f"  HALT at ID={halt_id:05d}")
         print()
         if not dry_run:
-            continuity = f"{nodes_written} notable events committed, {nodes_verified}/{probe_count} sampled read back — lattice intact"
+            continuity = (f"{nodes_written} events — lattice (symbolic) + "
+                          f"sidecar (semantic), {nodes_verified}/{probe_count} read back — intact")
         else:
             continuity = "[DRY-RUN — no lattice writes]"
         print(f"  WAL committed         {continuity}")
