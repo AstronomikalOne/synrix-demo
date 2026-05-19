@@ -20,6 +20,11 @@ Run:
     --receipt receipts/latest_operational_loop.jsonl
   PYTHONPATH=. python3 scripts/demo_operational_loop.py --dry-run
 
+Resume (close the loop — prior decisions reload into operational memory):
+  PYTHONPATH=. python3 scripts/demo_operational_loop.py \
+    --resume receipts/oploop_memory.avec --count 200
+  # First run writes the sidecar; subsequent runs replay it and append.
+
 Docker:
   docker run --rm synrix-gate python3 scripts/demo_operational_loop.py
 """
@@ -130,6 +135,10 @@ def _parse() -> argparse.Namespace:
                    help="H-IVF branches to probe")
     p.add_argument("--hivf-probe-b2",  type=int,   default=8,
                    help="H-IVF leaves per branch to probe")
+    p.add_argument("--resume",         type=str,   default=None,
+                   metavar="SIDECAR",
+                   help="path to a prior run's .avec sidecar; replays past decisions "
+                        "into operational memory before starting, then appends new events")
     return p.parse_args()
 
 
@@ -280,15 +289,35 @@ def main() -> None:  # noqa: C901
     # semantically queryable. Both use the same kernel — one unified memory.
 
     written_node_ids: list[int] = []
-    _op_aion_buf = None
+    _op_aion_buf   = None
+    _prior_events  = 0
+
+    # Sidecar row geometry (matches aion_vec_row_t in aion_vec_sidecar.h):
+    #   uint32_t node_id + uint8_t valid + uint8_t[3] reserved + float[512]
+    _SIDECAR_HEADER  = 32
+    _SIDECAR_ROW     = 4 + 1 + 3 + 512 * 4  # 2056 bytes
 
     if not dry_run:
-        print("  Initializing persistent lattice + operational memory...", end="", flush=True)
         _lattice_tmpdir = tempfile.mkdtemp(prefix="synrix_oploop_")
         lat_path        = os.path.join(_lattice_tmpdir, "oploop.lat")
-        sidecar_path    = os.path.join(_lattice_tmpdir, "oploop.avec")
-        _lattice_buf    = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
-        max_nodes       = 65_536   # working behavioral memory — independent of run length
+
+        # --resume: use the caller-supplied sidecar path (persistent across runs).
+        # Default: ephemeral sidecar in the temp dir (cleaned up at exit).
+        if args.resume:
+            sidecar_path    = os.path.abspath(args.resume)
+            _sidecar_owned  = False   # caller owns the file; don't delete it
+        else:
+            sidecar_path    = os.path.join(_lattice_tmpdir, "oploop.avec")
+            _sidecar_owned  = True
+
+        # Count events already in the sidecar before we open it.
+        if os.path.isfile(sidecar_path):
+            sz = os.path.getsize(sidecar_path)
+            _prior_events = max(0, (sz - _SIDECAR_HEADER) // _SIDECAR_ROW)
+
+        print("  Initializing persistent lattice + operational memory...", end="", flush=True)
+        _lattice_buf = ctypes.create_string_buffer(_LATTICE_BUF_SIZE)
+        max_nodes    = 65_536   # working behavioral memory — independent of run length
         if _lib.lattice_init(_lattice_buf, lat_path.encode(), max_nodes, 0) != 0:
             print("\n[ERROR] lattice_init failed")
             sys.exit(1)
@@ -298,6 +327,7 @@ def main() -> None:  # noqa: C901
         if _aion.semantic_vector_indexing_system_create(_op_aion_buf) != 0:
             print("\n[ERROR] operational aion_create failed")
             sys.exit(1)
+        # open_sidecar: creates the file if absent, replays existing rows if present.
         if _aion.semantic_vector_indexing_system_open_sidecar(
                 _op_aion_buf, sidecar_path.encode()) != 0:
             print("\n[ERROR] operational aion open_sidecar failed")
@@ -312,6 +342,9 @@ def main() -> None:  # noqa: C901
                 shutil.rmtree(_lattice_tmpdir, ignore_errors=True)
         atexit.register(_cleanup)
         print(" done", flush=True)
+
+        if _prior_events > 0:
+            print(f"  Operational memory: {_prior_events:,} prior events replayed from {sidecar_path}")
 
     # ── SCM router + gate ────────────────────────────────────────────────────
 
@@ -600,6 +633,9 @@ def main() -> None:  # noqa: C901
     print()
     print(f"  Events    total={processed}  run={state_counts['RUN']}  "
           f"mitigate={state_counts['MITIGATE']}  halt={state_counts['HALT']}")
+    if _prior_events > 0:
+        print(f"  Memory    {_prior_events:,} prior + {nodes_written} new = "
+              f"{_prior_events + nodes_written:,} total in operational sidecar")
     print(f"  Latency   p50={p50}µs  p95={p95}µs  p99={p99}µs")
     print(f"  Retrieval {retrieval_mode}")
     print(f"  Expert    {gate_ver}")
@@ -619,6 +655,7 @@ def main() -> None:  # noqa: C901
         "p95_us":        p95,
         "p99_us":        p99,
         "elapsed_s":     round(elapsed_s, 2),
+        "prior_events":  _prior_events,
         "retrieval":     retrieval_mode,
         "expert":        gate_ver,
         "dry_run":       dry_run,

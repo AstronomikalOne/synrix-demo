@@ -34,16 +34,16 @@ PYTHONPATH=. python3 scripts/demo_operational_loop.py --count 50 --breach-at 40
 PYTHONPATH=. python3 scripts/demo_operational_loop.py \
   --receipt receipts/latest_operational_loop.jsonl
 
+# Resume: prior decisions reload into operational memory before the next run starts
+PYTHONPATH=. python3 scripts/demo_operational_loop.py \
+  --resume receipts/oploop_memory.avec --count 200
+# First run creates the sidecar; subsequent runs replay it and append.
+
 # H-IVF retrieval (faster per-event query)
 PYTHONPATH=. python3 scripts/demo_operational_loop.py --hivf
 
 # Dry-run (no native libs required; labeled simulation)
 PYTHONPATH=. python3 scripts/demo_operational_loop.py --dry-run
-
-# 24h endurance
-PYTHONPATH=. python3 scripts/demo_operational_loop.py \
-  --duration-hours 24 \
-  --receipt receipts/latest_operational_loop.jsonl
 ```
 
 Or via make:
