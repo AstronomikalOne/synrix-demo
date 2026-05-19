@@ -1,0 +1,51 @@
+name: Build x86_64 native libs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-x86_64-libs.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout synrix-demo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.NEBULOS_PAT }}
+
+      - name: Checkout NebulOS-Scaffolding (source)
+        uses: actions/checkout@v4
+        with:
+          repository: AstronomikalOne/NebulOS-Scaffolding
+          token: ${{ secrets.NEBULOS_PAT }}
+          path: NebulOS-Scaffolding
+
+      - name: Install build deps
+        run: sudo apt-get install -y libhwy-dev g++ gcc
+
+      - name: Build libaion_semantic_index.so (x86_64 scalar)
+        run: |
+          AION_SEMANTIC_INDEX_SCALAR=1 \
+            bash NebulOS-Scaffolding/scripts/build_libaion_semantic_index.sh
+          file NebulOS-Scaffolding/build/libaion_semantic_index.so
+
+      - name: Copy into lib/linux-x86_64
+        run: |
+          cp NebulOS-Scaffolding/build/libaion_semantic_index.so \
+             lib/linux-x86_64/libaion_semantic_index.so
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lib/linux-x86_64/libaion_semantic_index.so
+          if git diff --cached --quiet; then
+            echo "No change — binary already up to date."
+          else
+            git commit -m "ci: update libaion_semantic_index.so for linux-x86_64"
+            git push
+          fi
