@@ -126,6 +126,53 @@ docker run --rm synrix-gate python3 scripts/demo_e2e_pipeline.py
 Writes 100 bearing records to the persistent lattice, builds a vector index,
 then processes a foreign PMU reading through all enforcement layers.
 
+### Computational memory — behavioral memory thesis
+
+Shows the same artifact lifecycle operating across three computational domains.
+Intended for architecture discussions and technical evaluations.
+
+```bash
+# Fixtures mode — no external dependencies, runs anywhere
+make setup
+PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_computational_memory.py --fixtures
+
+# Live mode — Act 1 runs real inference (requires llama-cli + GGUF model)
+LLAMA_BIN=/path/to/llama-cli MODEL_PATH=/path/to/model.gguf \
+  PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_computational_memory.py
+```
+
+Expected output:
+
+```
+── Act 1  ·  Inference State Memory ─────────────────────────
+  first execution        80.1s
+  artifact retrieved     1.45s
+  cost avoided           55×
+  [PASS] Prior inference state retrieved. Prefill skipped.
+
+── Act 2  ·  Binary Optimization Memory ─────────────────────
+  oracle speedup         1.44×
+  safety validation      8/8 passes
+  risk classification    certified
+  [PASS] Prior optimization retrieved. Rediscovery skipped.
+
+── Act 3  ·  Workload Behavioral Memory ─────────────────────
+  measured dimensions    14
+  profiles on record     28,049
+  [PASS] Prior behavioral profile retrieved. Re-measurement skipped.
+
+  Prompt    →  Artifact  →  Reuse
+  Binary    →  Artifact  →  Reuse
+  Workload  →  Artifact  →  Reuse
+
+  Different computations.
+  Same artifact lifecycle.
+  Same retrieval model.
+  Same substrate.
+```
+
+Bench receipts: [`receipts/phi_optimization_example.json`](receipts/phi_optimization_example.json)
+
 ---
 
 ## Performance
@@ -210,8 +257,11 @@ Not included: φ/PSS probe subsystem, live WAVE PMU collection pipeline, C sourc
 
 ```
 scripts/               Demo and benchmark scripts
+  demo_computational_memory.py   Behavioral memory thesis demo (three domains)
+  kv_prefill_cache.py            KV prefill cache manager (exact-match, lattice-indexed)
 experiments/scm_v0_1/  SCM routing module (Python source)
 analysis/              Pre-trained artifacts and gate fixture
+receipts/              Benchmark and optimization receipts
 lib/                   Pre-built native libraries
 docs/                  Architecture, benchmarks, and receipts
 sbom.json              CycloneDX 1.5 software bill of materials
