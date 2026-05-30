@@ -1,5 +1,5 @@
 .PHONY: build run run-stress run-expert run-fresh run-interactive setup setup-corpus \
-  demo-screen-record demo-operational-loop
+  demo-screen-record demo-operational-loop demo-computational-memory
 
 # ── Docker path (recommended) ─────────────────────────────────────────────────
 build:
@@ -42,6 +42,12 @@ run-interactive:
 # Paced terminal output for screen recording (gate + e2e). See docs/DEMO_SPLIT.md
 demo-screen-record:
 	bash scripts/demo_screen_record.sh
+
+# Behavioral memory thesis demo — three computational domains, same artifact lifecycle.
+# Requires: make setup. For live Act 1: LLAMA_BIN=... MODEL_PATH=... make demo-computational-memory
+# Without those env vars, falls back to --fixtures automatically.
+demo-computational-memory:
+	PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_computational_memory.py
 
 # Operational loop: streams events through full stack, halts on foreign domain.
 # Writes receipt to receipts/latest_operational_loop.jsonl.

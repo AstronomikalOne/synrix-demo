@@ -1,0 +1,13 @@
+{
+  "type": "phi_optimization_receipt",
+  "description": "Automated binary performance optimization — ggml vec_dot kernel",
+  "target_function": "ggml_vec_dot_q5_K_q8_K",
+  "binary_type": "AI inference runtime (llama.cpp)",
+  "oracle_speedup": 1.44,
+  "oracle_pass": "8/8",
+  "risk_classification": "certified",
+  "wall_clock_inference": "+5.9%",
+  "wall_clock_workload": "pp512, Qwen2.5-1.5B Q5_K_M, 4 CPU threads",
+  "discovery_method": "automated mutation sweep over NEON instruction classes",
+  "notes": "Artifact stored once. Retrieved in <1ms on subsequent analysis of same binary."
+}
