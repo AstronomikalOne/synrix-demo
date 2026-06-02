@@ -60,7 +60,7 @@ from kv_prefill_cache import _make_prompt as _kvc_make_prompt, lookup as _kvc_lo
 _DEMO_PROMPT = _kvc_make_prompt(650)
 
 # Behavioral fixture — real PMU measurements from silicon characterization corpus.
-# Retrieved from artifact store in Act 3.
+# Stored example; Act 3 loads this directly (no live lattice query in demo mode).
 _WAVE_FIXTURE = {
     "iso": 2, "dep": 2, "indep": 2, "tput": 0, "load": 2,
     "cross": 2, "branch": 2, "cache": 0, "tlb": 0,
@@ -106,7 +106,7 @@ def _act_kv_memory(fixtures: bool) -> None:
     _pause(_PAUSE)
 
     if fixtures or has_cached:
-        display_cold = cold_ms or 80085
+        display_cold = cold_ms or 60538  # bench receipt: 650-token cold prefill, Jetson Orin Nano
         _info(f"Run 1: {display_cold/1000:.1f}s  (cold prefill, no prior state)")
     else:
         from kv_prefill_cache import store as _kvc_store
@@ -128,7 +128,7 @@ def _act_kv_memory(fixtures: bool) -> None:
     _pause(_PAUSE)
 
     if fixtures:
-        cached_ms = 1450
+        cached_ms = 1367  # bench receipt: 650-token cached reload, Jetson Orin Nano
         _info(f"Run 2: {cached_ms/1000:.2f}s  (retrieved from artifact store)")
     elif blob_path:
         t0 = time.monotonic()
@@ -138,10 +138,10 @@ def _act_kv_memory(fixtures: bool) -> None:
         cached_ms = round((time.monotonic() - t0) * 1000)
         _info(f"Run 2: {cached_ms/1000:.2f}s  (retrieved from artifact store)")
     else:
-        cached_ms = 1450
+        cached_ms = 1367  # bench receipt: 650-token cached reload, Jetson Orin Nano
         _info(f"Run 2: ~{cached_ms/1000:.2f}s  (from bench receipt — live run unavailable)")
 
-    display_cold = display_cold if not fixtures else (cold_ms or 80085)
+    display_cold = display_cold if not fixtures else (cold_ms or 60538)
     speedup      = display_cold / cached_ms if cached_ms else 54
 
     print()
@@ -211,11 +211,11 @@ def _act_workload_memory() -> None:
     print()
     _info("Workload submitted for characterization.")
     _pause(_PAUSE)
-    _info("Querying artifact store...")
+    _info("Loading stored behavioral fingerprint...")
     _pause(_PAUSE)
 
     f = _WAVE_FIXTURE
-    _pass("Behavioral fingerprint found.")
+    _pass("Behavioral fingerprint loaded.")
     print()
     _kv("iso / dep / indep",  f"{f['iso']} / {f['dep']} / {f['indep']}")
     _kv("throughput / load",  f"{f['tput']} / {f['load']}")
@@ -227,7 +227,7 @@ def _act_workload_memory() -> None:
     _pause(_PAUSE)
     print()
     _info("Measurement cost avoided: multi-pass PMU sampling across hardware counters")
-    _info("Artifact retrieved:       < 1ms (lattice prefix lookup)")
+    _info("Artifact loaded:          < 1ms (stored behavioral fingerprint)")
     _pause(_PAUSE)
     _pass("Prior behavioral profile retrieved. Re-measurement skipped.")
 
