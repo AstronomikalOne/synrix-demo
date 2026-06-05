@@ -229,8 +229,6 @@ Expected output:
   Same substrate.
 ```
 
-Bench receipts: [`receipts/phi_optimization_example.json`](receipts/phi_optimization_example.json)
-
 ---
 
 ## Performance
@@ -295,6 +293,7 @@ Pipeline receipt (17/17 checks): [`receipts/cra_pipeline_receipt.jsonl`](https:/
 | SCM routing (`experiments/scm_v0_1/`) | Python source, included |
 | Pre-trained weights (12 KB `.npz`) | Included |
 | CWRU bearing corpus (94,795 vectors) | Downloaded on first run |
+| PHI transfer receipts (`receipts/phi_transfer_*.json`) | Included |
 | SBOM (CycloneDX 1.5) | [`sbom.json`](sbom.json) |
 
 Not included: φ/PSS probe subsystem, live WAVE PMU collection pipeline, C source for native libraries.
@@ -314,16 +313,21 @@ Not included: φ/PSS probe subsystem, live WAVE PMU collection pipeline, C sourc
 ## Layout
 
 ```
-scripts/               Demo and benchmark scripts
+scripts/
+  demo_synrix_gate.py            Triple behavioral gate (UNSW / CWRU / WAVE silicon)
+  demo_e2e_pipeline.py           Lattice write + AION512 index + SCM routing + gate
+  demo_interactive.py            Browser UI at :5050 — three signal types, live detection
+  demo_operational_loop.py       Continuous enforcement loop; --resume; HALT at event boundary
   demo_phi_transfer.py           PHI optimization transfer — three-phase ladder
-  demo_computational_memory.py   Behavioral memory thesis demo (three domains)
+  demo_computational_memory.py   Behavioral memory thesis — three computational domains
   kv_prefill_cache.py            KV prefill cache manager (exact-match, lattice-indexed)
-experiments/scm_v0_1/  SCM routing module (Python source)
-analysis/              Pre-trained artifacts and gate fixture
-receipts/              Benchmark and optimization receipts
-lib/                   Pre-built native libraries
-docs/                  Architecture, benchmarks, and receipts
-sbom.json              CycloneDX 1.5 software bill of materials
+
+experiments/scm_v0_1/           SCM routing module (Python source)
+analysis/                       Pre-trained artifacts and gate fixture
+receipts/                       Benchmark and optimization receipts
+lib/                            Pre-built native libraries (linux-aarch64, linux-x86_64)
+docs/                           Architecture, benchmarks, and receipts
+sbom.json                       CycloneDX 1.5 software bill of materials
 ```
 
 ---
