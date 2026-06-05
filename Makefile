@@ -43,6 +43,11 @@ run-interactive:
 demo-screen-record:
 	bash scripts/demo_screen_record.sh
 
+# PHI optimization transfer demo — three-phase ladder: remember → transfer → recognize.
+# Works from any clone (fixture mode). Live mode: SYNRIX_LATTICE=... TARGET_BINARY=... make demo-phi-transfer --live
+demo-phi-transfer:
+	python3 scripts/demo_phi_transfer.py $(ARGS)
+
 # Behavioral memory thesis demo — three computational domains, same artifact lifecycle.
 # Requires: make setup. For live Act 1: LLAMA_BIN=... MODEL_PATH=... make demo-computational-memory
 # Without those env vars, falls back to --fixtures automatically.

@@ -1,0 +1,70 @@
+{
+  "receipt_type": "phi_transfer_phase2",
+  "date": "2026-06-05",
+  "platform": "aarch64 (Jetson AGX Orin, Cortex-A78AE)",
+  "thesis": "PHI reused a prior optimization descriptor across compilation variants without full rediscovery.",
+
+  "source_binary": {
+    "build_flags": "GGML_NATIVE=OFF, LTO=OFF, armv8.2-a+dotprod",
+    "sha256_prefix": "034dd747"
+  },
+  "target_binary": {
+    "build_flags": "GGML_NATIVE=ON, LTO=ON, -mcpu=cortex-a78ae+crypto+flagm+pauth+dotprod",
+    "note": "Maximally-optimized fair baseline — same compiler, full auto-detection"
+  },
+
+  "phase1_result": {
+    "verdict": "4/4 MISS",
+    "method": "exact byte comparison at mutation site",
+    "finding": "Codegen changed across build variants; exact transfer is brittle"
+  },
+
+  "phase2_result": {
+    "method": "AArch64 register-normalized canonicalization (mask Rd/Rn/Rm fields)",
+    "verdicts": [
+      {
+        "symbol": "ggml_vec_dot_q8_0_q8_0",
+        "mutation": "dead@30",
+        "source_oracle_speedup": 1.53,
+        "phase1": "MISS",
+        "phase2": "TRANSFER_CANDIDATE (L1 — Rd-rename only)",
+        "delta": "bit 0 of Rd field: register 3 → register 2",
+        "opcode_class_match": true,
+        "binary_integrity": "PASS (binary runs, valid throughput)"
+      },
+      {
+        "symbol": "ggml_vec_dot_q4_0_q8_0",
+        "mutation": "swap@1,2",
+        "source_oracle_speedup": 1.33,
+        "phase1": "MISS",
+        "phase2": "TRANSFER_CANDIDATE (L1 — Rd-rename only)",
+        "delta": "bit 3 of Rd field in instr[1]",
+        "opcode_class_match": true,
+        "binary_integrity": "PASS",
+        "wall_clock_result": {
+          "speedup": 0.986,
+          "interpretation": "Flat within noise. NATIVE=ON compiler already scheduled optimally."
+        }
+      },
+      {
+        "symbol": "ggml_vec_dot_q4_K_q8_K",
+        "mutation": "dead@0",
+        "phase1": "MISS",
+        "phase2": "MISS (correct reject — opcode class changed)"
+      },
+      {
+        "symbol": "ggml_vec_dot_q5_K_q8_K",
+        "mutation": "dead@29",
+        "phase1": "MISS",
+        "phase2": "MISS (correct reject — opcode class changed)"
+      }
+    ]
+  },
+
+  "conclusions": {
+    "transfer_candidate_applied_correctly": true,
+    "phase2_discrimination": "2/4 correct promotions (MISS→TRANSFER_CANDIDATE), 2/4 correct rejections",
+    "optimization_transfer_claim": "Mutation descriptors stored in the lattice ARE reusable across register-renamed codegen variants. Wall-clock gain requires the target to have the same optimization gap — NATIVE=ON compiler already closes it.",
+    "next_step": "Phase 3 — behavior-based recognition without symbol name"
+  }
+}
