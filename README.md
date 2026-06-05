@@ -126,6 +126,64 @@ docker run --rm synrix-gate python3 scripts/demo_e2e_pipeline.py
 Writes 100 bearing records to the persistent lattice, builds a vector index,
 then processes a foreign PMU reading through all enforcement layers.
 
+### PHI optimization transfer — optimizer that recognizes
+
+Three-phase demo of PHI's optimization memory system. Works from any clone with no binary or lattice required.
+
+```bash
+python3 scripts/demo_phi_transfer.py
+```
+
+Expected output:
+
+```
+Act 1 — Memory: what PHI stored
+  PHIFP:ggml_vec_dot_q8_0_q8_0  dead@30   1.53×  certified
+  PHIFP:ggml_vec_dot_q4_0_q8_0  swap@1,2  1.33×  sound
+  PHIFP:ggml_vec_dot_q4_K_q8_K  dead@0    1.27×  certified
+  PHIFP:ggml_vec_dot_q5_K_q8_K  dead@29   1.44×  certified
+
+  ✓  Lattice stores the mutation descriptor. Retrieval is sub-millisecond.
+
+Act 2 — Transfer gate: does the mutation apply to a new binary?
+  expected  c31ca64e  →  actual  c21ca64e
+  △  MISS (exact) — byte differs; trying register-normalized comparison…
+
+  Mask bits[4:0] (Rd — output register field):
+    expected masked  0x4ea61cc0
+    actual   masked  0x4ea61cc0  ← MATCH
+
+  ✓  TRANSFER_CANDIDATE — Rd-rename only (L1)
+  ✓  2/4 correct promotions. 2/4 correct rejections.
+
+Act 3 — Recognition: identify by behavior profile, not by name
+  func_offset  0xca68  (102 instructions, no symbol provided)
+
+  ANN search results:
+    [1]  PHIFP:ggml_vec_dot_q8_0_q8_0    0.9877    1.53×
+    [2]  PHIFP:ggml_vec_dot_q4_0_q8_0    0.9877    1.33×
+    [3]  PHIFP:ggml_vec_dot_q4_K_q8_K    0.9426    1.27×
+    [4]  PHIFP:ggml_vec_dot_q5_K_q8_K    0.9311    1.44×
+
+  ✓  PHI recognized the function family — no symbol name used.
+  △  Gate correctly refused: opcode class changed in this variant.
+     Warm-start returned: try dead@30 in targeted re-search.
+```
+
+**Claim:** given an unnamed binary region, PHI retrieves prior optimization candidates from behavioral similarity rather than symbol identity.
+
+The MISS after retrieval is correct behavior. PHI recognized the function family and refused to apply a mutation across an opcode-class boundary. That is what you want from a system that modifies live binaries.
+
+Live mode (requires Synrix lattice with PHIFP nodes and a target binary):
+
+```bash
+SYNRIX_LATTICE=path/to/probe_discovery.lattice \
+TARGET_BINARY=/path/to/binary \
+  python3 scripts/demo_phi_transfer.py --live
+```
+
+Receipts: [`receipts/phi_transfer_phase2_receipt.json`](receipts/phi_transfer_phase2_receipt.json) · [`receipts/phi_transfer_phase3_receipt.json`](receipts/phi_transfer_phase3_receipt.json)
+
 ### Computational memory — behavioral memory thesis
 
 Shows the same artifact lifecycle operating across three computational domains.
@@ -257,6 +315,7 @@ Not included: φ/PSS probe subsystem, live WAVE PMU collection pipeline, C sourc
 
 ```
 scripts/               Demo and benchmark scripts
+  demo_phi_transfer.py           PHI optimization transfer — three-phase ladder
   demo_computational_memory.py   Behavioral memory thesis demo (three domains)
   kv_prefill_cache.py            KV prefill cache manager (exact-match, lattice-indexed)
 experiments/scm_v0_1/  SCM routing module (Python source)
