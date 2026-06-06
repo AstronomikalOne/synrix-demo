@@ -188,6 +188,8 @@ Receipts: [`receipts/phi_transfer_phase2_receipt.json`](receipts/phi_transfer_ph
 
 Three-act demo answering the questions a customer actually has. No explanation of embeddings, ANN, or PMU internals required.
 
+Corpus: 1,921 function-level behavioral fingerprints from a real runtime binary. Every similarity score is a real cosine distance between opcode fingerprint vectors.
+
 ```bash
 python3 scripts/demo_behavioral_evidence.py
 ```
@@ -199,50 +201,50 @@ Act 1  —  What changed?
   firmware_v1_2.bin   collected 2026-03-14
   firmware_v1_3.bin   collected 2026-05-02
 
-  Behavior Similarity:  0.9296
+  Behavior Similarity:  0.9236
 
   Changed Regions:
-    * scheduler path
-    * memory management path
+    * NEON/SIMD compute density  (-0.092)
+    * control flow intensity  (+0.044)
+    * memory access pattern  (+0.047)
 
   Unchanged Regions:
-    * cache subsystem
-    * compute throughput
-    * branch predictor
-    * instruction decode
+    * data processing (register)
+    * SIMD/FP arithmetic
+    * data immediate ops
 
   Traditional diff tells you bytes changed.
   Synrix tells you behavior changed.
 
 Act 2  —  Where else have we seen this?
-  Searching behavioral corpus  (28,049 profiles)...
+  Searching behavioral corpus  (1,921 profiles)...
 
   Top Matches
 
-    1.  ECU Firmware 2.4.1         0.9897
-    2.  ECU Firmware 2.4.2         0.9867
-    3.  Robotics Controller 1.8    0.9852
-    4.  ECU Firmware 2.3.9         0.9770
+    1.  Quantization Kernel — INT4-NL    0.9659
+    2.  Quantization Kernel — INT4+1     0.9630
+    3.  Quantization Kernel — INT5+1     0.9559
+    4.  Quantization Kernel — MX-FP4     0.9453
 
   This is not a binary diff.
   This is behavioral search across a corpus.
 
 Act 3  —  Show me the evidence.
   Behavioral Artifact
-    ID:                    WAVE_0x1F6C80E0
-    Source:                Firmware Family A
-    Collected:             2026-01-08
+    ID:                    ggml_vec_dot_iq4_nl_q8_0
+    Source:                Runtime Binary — Quantization Family
+    Collected:             2026-03-14
     Validated:             PASS  (7/7 checks)
-    Similarity to query:   0.9897
+    Similarity to query:   0.9659
     Receipt:               Available
 
   Provenance Chain
-    [1] PMU measurement        PASS
-    [2] Fingerprint generated  PASS
-    [3] Lattice storage        PASS
-    [4] Vector index update    PASS
-    [5] Validation check       PASS
-    [6] Signature committed    PASS
+    [1] Binary function extracted        PASS
+    [2] Behavioral fingerprint computed  PASS
+    [3] Lattice storage                  PASS
+    [4] Vector index updated             PASS
+    [5] Validation check                 PASS
+    [6] Evidence signature committed     PASS
 
   Synrix does not return guesses.
   Synrix returns receipts.
