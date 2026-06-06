@@ -69,7 +69,7 @@
   ],
 
   "conclusions": {
-    "ann_retrieval": "PROVEN — top hit correctly identifies ggml_vec_dot_q8_0_q8_0 at 0.9877 similarity without being given the symbol name. Similarity ordering reflects true structural proximity.",
+    "ann_retrieval": "Top hit correctly identifies ggml_vec_dot_q8_0_q8_0 at 0.9877 cosine similarity without being given the symbol name. 4-function corpus; similarity ordering reflects structural proximity within the quantization dot-product family.",
     "phase2_gates": "MISS on all 4 in this binary variant. Correct behavior: gate refused to over-apply across opcode-class boundary.",
     "warm_start_value": "4 warm-start position hints returned — re-search starting at instr[30] converges faster than cold mutation sweep.",
     "phase3_claim": "PHI recognizes a function by behavioral instruction mix, retrieves prior optimization family, applies Phase 2 gates, outputs warm-start candidates — without knowing the symbol name."

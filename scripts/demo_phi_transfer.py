@@ -66,14 +66,12 @@ def _sep() -> None: print(f"     {'─' * (W - 5)}")
 
 # ── Phase 1: lattice retrieval (fixture) ─────────────────────────────────────
 
-_SWEEP_WINS = [
-    {"symbol": "ggml_vec_dot_q8_0_q8_0", "mutation": "dead@30",  "oracle": 1.53, "risk": "certified"},
-    {"symbol": "ggml_vec_dot_q4_0_q8_0", "mutation": "swap@1,2", "oracle": 1.33, "risk": "sound"},
-    {"symbol": "ggml_vec_dot_q4_K_q8_K", "mutation": "dead@0",   "oracle": 1.27, "risk": "certified"},
-    {"symbol": "ggml_vec_dot_q5_K_q8_K", "mutation": "dead@29",  "oracle": 1.44, "risk": "certified"},
-]
-
 def act1_fixture(pause: float) -> None:
+    corpus_path = _ROOT / "receipts" / "phifp_corpus.json"
+    corpus = json.loads(corpus_path.read_text())
+    src = corpus["source_binary"]
+    fns = corpus["phifp_functions"]
+
     _banner("Act 1 — Memory: what PHI stored")
     _info("PHI ran an automated mutation sweep across 4 NEON kernel functions")
     _info("in a llama.cpp AI inference binary. Each confirmed win was stored")
@@ -82,20 +80,21 @@ def act1_fixture(pause: float) -> None:
 
     print(f"     {'Symbol':<44}  {'Mutation':<12}  {'Oracle':>7}  Risk")
     print(f"     {'─'*44}  {'─'*12}  {'─'*7}  {'─'*9}")
-    for w in _SWEEP_WINS:
-        color = GREEN if w["risk"] == "certified" else YELLOW
-        print(f"     {CYAN}{w['symbol']:<44}{RST}  {w['mutation']:<12}  "
-              f"{w['oracle']:>6}×  {color}{w['risk']}{RST}")
+    for sym, entry in fns.items():
+        color = GREEN if entry["risk"] == "certified" else YELLOW
+        print(f"     {CYAN}{sym:<44}{RST}  {entry['mutation']:<12}  "
+              f"{entry['oracle_speedup']:>6}×  {color}{entry['risk']}{RST}")
 
     print()
-    _act("Retrieving stored descriptor for ggml_vec_dot_q8_0_q8_0…")
-    time.sleep(pause * 0.5)
-    _info("node             PHIFP:ggml_vec_dot_q8_0_q8_0:034dd747")
-    _info("mutation         dead@30  (instruction 30 is a dead write)")
-    _info("patch            NOP  (d5 03 20 1f)")
-    _info("oracle speedup   1.53×   (8/8 trials)")
-    _info("risk             certified")
-    _info("source build     GGML_NATIVE=OFF, armv8.2-a+dotprod")
+    anchor_sym = "ggml_vec_dot_q8_0_q8_0"
+    anchor = fns[anchor_sym]
+    _act(f"Stored descriptor for {anchor_sym}")
+    _info(f"node             PHIFP:{anchor_sym}:{src['sha8']}")
+    _info(f"mutation         {anchor['mutation']}  (instruction 30 is a dead write)")
+    _info(f"patch            NOP  (d5 03 20 1f)")
+    _info(f"oracle speedup   {anchor['oracle_speedup']}×")
+    _info(f"risk             {anchor['risk']}")
+    _info(f"source build     {src['build_flags']}")
     print()
     _ok("Lattice stores the mutation descriptor. Retrieval is sub-millisecond.")
     time.sleep(pause)
@@ -146,99 +145,114 @@ def act1_live(lattice_path: str, pause: float) -> None:
 # ── Phase 2: register-normalized transfer gate ────────────────────────────────
 
 def act2_fixture(pause: float) -> None:
+    receipt = json.loads(_RECEIPT_P2.read_text())
+    src = receipt["source_binary"]
+    tgt = receipt["target_binary"]
+    hexcmp = receipt["phase1_hex_comparison"]["ggml_vec_dot_q8_0_q8_0"]
+
     _banner("Act 2 — Transfer gate: does the mutation apply to a new binary?")
-    _info("The mutation was discovered on a NATIVE=OFF build. We ask:")
-    _info("can it transfer to a NATIVE=ON (maximally optimized) build?")
+    _info(f"Source build: {src['build_flags']}  (sha8: {src['sha256_prefix']})")
+    _info(f"Target build: {tgt['build_flags']}")
     print()
 
-    _act("Phase 1 check — exact bytes")
-    time.sleep(pause * 0.5)
-    _info("expected  c31ca64e  (stored PHIFP descriptor)")
-    _info("actual    c21ca64e  (read from target binary)")
-    _warn("MISS (exact) — byte differs; trying register-normalized comparison…")
+    p1 = receipt["phase1_result"]
+    _act("Phase 1 check — exact byte match at mutation sites")
+    _info(f"  expected  {hexcmp['source_instr_hex']}  (stored PHIFP descriptor, instr[30])")
+    _info(f"  actual    {hexcmp['target_instr_hex']}  (target binary instr[30])")
+    _warn(f"MISS (exact) — {p1['finding']}")
 
     print()
-    _act("Phase 2 check — AArch64 register normalization")
-    time.sleep(pause * 0.5)
-    _info("Mask bits[4:0] (Rd — output register field):")
-    _info("  expected masked   0x4ea61cc0")
-    _info("  actual   masked   0x4ea61cc0   ← MATCH")
-    print()
-    _info("The opcode class is identical. Only the output register differs:")
-    _info("  register 3  →  register 2  (compiler chose a different allocation)")
-    _info("A dead instruction (dead@N) is dead regardless of which register")
-    _info("holds the result. The NOP mutation transfers.")
+    _act("Phase 2 check — AArch64 register-normalized canonicalization")
+    _info(f"  {hexcmp['difference']}")
+    _info("  Mask bits[4:0] (Rd field): both → 0x4ea61cc0  ← MATCH")
+    _info("  Opcode class identical. Dead write is dead in any register.")
+    _info("  The NOP mutation transfers.")
     print()
     _ok("TRANSFER_CANDIDATE — Rd-rename only (L1)")
-    _ok("Patched binary runs cleanly. Integrity verified.")
+    _ok(f"Binary integrity: {receipt['phase2_result']['verdicts'][0]['binary_integrity']}")
     print()
 
     _act("Phase 2 discrimination across all 4 functions")
-    time.sleep(pause * 0.3)
-    rows = [
-        ("ggml_vec_dot_q8_0_q8_0", "dead@30",  "TRANSFER_CANDIDATE (L1)", True),
-        ("ggml_vec_dot_q4_0_q8_0", "swap@1,2", "TRANSFER_CANDIDATE (L1)", True),
-        ("ggml_vec_dot_q4_K_q8_K", "dead@0",   "MISS (opcode class changed)", False),
-        ("ggml_vec_dot_q5_K_q8_K", "dead@29",  "MISS (opcode class changed)", False),
-    ]
     print(f"     {'Symbol':<30}  {'Mutation':<12}  Verdict")
     print(f"     {'─'*30}  {'─'*12}  {'─'*34}")
-    for sym, mut, verdict, ok in rows:
+    for v in receipt["phase2_result"]["verdicts"]:
+        ok = "TRANSFER" in v["phase2"]
         color = GREEN if ok else YELLOW
-        print(f"     {sym:<30}  {mut:<12}  {color}{verdict}{RST}")
+        print(f"     {v['symbol']:<30}  {v['mutation']:<12}  {color}{v['phase2']}{RST}")
 
     print()
-    _info("2/4 correct promotions. 2/4 correct rejections.")
+    c = receipt["conclusions"]
+    _info(f"Result: {c['phase2_discrimination']}")
     _info("Overmatching would have been 4/4 — the gate earns its place.")
+    wc = receipt["phase2_result"]["verdicts"][1].get("wall_clock_result", {})
+    if wc:
+        _info(f"Wall-clock on transfer candidate: {wc['speedup']}×  ({wc['interpretation']})")
     time.sleep(pause)
 
 
 # ── Phase 3: behavior-based recognition ──────────────────────────────────────
 
 def act3_fixture(pause: float) -> None:
+    import numpy as np
+
     _banner("Act 3 — Recognition: identify by behavior profile, not by name")
     _info("We give PHI a raw function offset in a binary. No symbol name.")
     _info("PHI computes an opcode fingerprint and searches for prior wins")
     _info("by behavioral similarity.")
     print()
 
-    _act("Stripping the symbol name")
-    _info("func_offset  0xca68")
-    _info("func_size    408 bytes  (102 AArch64 instructions)")
-    _info("symbol       (none — address-only scenario)")
+    corpus_path = _ROOT / "receipts" / "phifp_corpus.json"
+    corpus = json.loads(corpus_path.read_text())
+    query_bins = corpus["query_bins"]
+
+    _act("AArch64 opcode fingerprint  (bits[28:25] → 16-bin histogram → 512-float vector)")
+    _info(f"func_offset  {corpus['query_offset_hex']}   size {corpus['query_size_bytes']} bytes"
+          f"  ({corpus['query_size_bytes']//4} instructions)")
+    _info(f"query binary sha8={corpus['query_binary']['sha8']}  symbol stripped")
+    nz = {i: round(v, 3) for i, v in enumerate(query_bins) if v > 0.001}
+    _info(f"nonzero bins: {nz}")
+
+    def to_vec(bins: list) -> "np.ndarray":
+        v = np.tile(np.array(bins, dtype=np.float32), 32)[:512]
+        n = float(np.linalg.norm(v))
+        return v / n if n > 0 else v
+
+    q_vec = to_vec(query_bins)
 
     print()
-    _act("Computing AArch64 opcode fingerprint")
-    time.sleep(pause * 0.5)
-    _info("bits[28:25] of each instruction → 16-bin encoding-group histogram")
-    _info("→ L2-normalized → tiled 32× → 512-float AION512 vector")
-    _info("nonzero bins: {5: 0.098, 7: 0.275, 8: 0.176, 14: 0.147, 15: 0.118, …}")
-
-    print()
-    _act("ANN search against PHIFP vectors in Synrix lattice")
-    time.sleep(pause * 0.7)
-
-    receipt = json.loads(_RECEIPT_P3.read_text())
-    hits = receipt["ann_results"]
+    _act("Cosine search against PHIFP corpus")
+    t0 = time.perf_counter()
+    results = []
+    for sym, entry in corpus["phifp_functions"].items():
+        sim = float(np.dot(q_vec, to_vec(entry["bins"])))
+        results.append({
+            "node": f"PHIFP:{sym}",
+            "similarity": round(sim, 4),
+            "mutation": entry["mutation"],
+            "oracle_speedup": entry["oracle_speedup"],
+            "warm_start": f"try {entry['mutation']} in targeted re-search",
+        })
+    results.sort(key=lambda x: x["similarity"], reverse=True)
+    elapsed_ms = (time.perf_counter() - t0) * 1000
 
     print()
     print(f"     {'Rank':<5}  {'Node':<40}  {'Similarity':>10}  {'Oracle':>7}")
     print(f"     {'─'*5}  {'─'*40}  {'─'*10}  {'─'*7}")
-    for h in hits:
+    for i, h in enumerate(results):
         sim = h["similarity"]
         color = GREEN if sim >= 0.95 else YELLOW
-        print(f"     [{h['rank']}]    {CYAN}{h['node']:<40}{RST}  "
-              f"{color}{sim:>10.4f}{RST}  {h.get('oracle_speedup', '?'):>6}×")
+        print(f"     [{i+1}]    {CYAN}{h['node']:<40}{RST}  "
+              f"{color}{sim:>10.4f}{RST}  {h['oracle_speedup']:>6}×")
 
     print()
-    top = hits[0]
-    _ok(f"Top hit: {CYAN}{top['node']}{RST}  similarity={top['similarity']}")
+    _info(f"search: {elapsed_ms:.1f} ms  ({len(results)} corpus nodes)")
+    top = results[0]
+    _ok(f"Top hit: {CYAN}{top['node']}{RST}  similarity={top['similarity']:.4f}")
     _ok("PHI recognized the function family by behavioral instruction mix.")
     _ok("No symbol name used.")
 
     print()
     _act("Phase 2 gate on top candidate")
-    time.sleep(pause * 0.3)
     _warn("MISS — gate correctly refused: opcode class changed in this variant")
     _info("The instruction class at mutation site differs from stored descriptor.")
     _info(f"Warm-start returned: {top['warm_start']}")

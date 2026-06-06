@@ -1,0 +1,93 @@
+{
+  "_note": "Real 16-bin opcode fingerprint histograms for PHIFP functions and behavioral evidence demo. Bins extracted from ELF binaries via bits[28:25] encoding-group histogram. Cosine similarities are computed at demo time from these bins.",
+  "source_binary": {
+    "sha8": "034dd747",
+    "binary": "test-quantize-perf",
+    "build_flags": "GGML_NATIVE=OFF, LTO=OFF, armv8.2-a+dotprod"
+  },
+  "query_binary": {
+    "sha8": "16c03373",
+    "binary": "test-quantize-perf (build-fair)",
+    "build_flags": "GGML_NATIVE=ON, LTO=ON, -mcpu=cortex-a78ae+crypto+flagm+pauth+dotprod"
+  },
+  "phifp_functions": {
+    "ggml_vec_dot_q8_0_q8_0": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.126214, 0.0, 0.23301, 0.15534, 0.097087, 0.048544, 0.019417, 0.019417, 0.038835, 0.145631, 0.116505],
+      "source_offset_hex": "0x4dc80",
+      "source_size_bytes": 412,
+      "mutation": "dead@30",
+      "oracle_speedup": 1.53,
+      "risk": "certified"
+    },
+    "ggml_vec_dot_q4_0_q8_0": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.080357, 0.0, 0.267857, 0.178571, 0.107143, 0.044643, 0.017857, 0.026786, 0.053571, 0.116071, 0.107143],
+      "source_offset_hex": "0x4d0f0",
+      "source_size_bytes": 448,
+      "mutation": "swap@1,2",
+      "oracle_speedup": 1.33,
+      "risk": "sound"
+    },
+    "ggml_vec_dot_q4_K_q8_K": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.010101, 0.090909, 0.040404, 0.282828, 0.141414, 0.141414, 0.040404, 0.020202, 0.050505, 0.030303, 0.050505, 0.10101],
+      "source_offset_hex": "0x4e734",
+      "source_size_bytes": 396,
+      "mutation": "dead@0",
+      "oracle_speedup": 1.27,
+      "risk": "certified"
+    },
+    "ggml_vec_dot_q5_K_q8_K": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.018349, 0.055046, 0.036697, 0.357798, 0.12844, 0.12844, 0.036697, 0.018349, 0.036697, 0.027523, 0.055046, 0.100917],
+      "source_offset_hex": "0x4e8c0",
+      "source_size_bytes": 436,
+      "mutation": "dead@29",
+      "oracle_speedup": 1.44,
+      "risk": "certified"
+    }
+  },
+  "query_bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.098039, 0.019608, 0.27451, 0.176471, 0.078431, 0.039216, 0.019608, 0.0, 0.029412, 0.147059, 0.117647],
+  "query_function": "ggml_vec_dot_q8_0_q8_0",
+  "query_offset_hex": "0xca68",
+  "query_size_bytes": 408,
+  "behavioral_corpus": {
+    "ggml_vec_dot_q8_0_q8_0": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.126214, 0.0, 0.23301, 0.15534, 0.097087, 0.048544, 0.019417, 0.019417, 0.038835, 0.145631, 0.116505],
+      "label": "ggml_vec_dot_q8_0_q8_0",
+      "family": "quantization dot-product"
+    },
+    "ggml_vec_dot_f16": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.112903, 0.048387, 0.145161, 0.209677, 0.096774, 0.096774, 0.032258, 0.0, 0.0, 0.145161, 0.112903],
+      "source_offset_hex": "0x213e0",
+      "source_size_bytes": 248,
+      "label": "ggml_vec_dot_f16",
+      "family": "fp16 dot-product"
+    },
+    "ggml_vec_dot_iq4_nl_q8_0": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.063636, 0.0, 0.172727, 0.2, 0.109091, 0.063636, 0.018182, 0.045455, 0.054545, 0.127273, 0.145455],
+      "source_offset_hex": "0x4fdf0",
+      "source_size_bytes": 440,
+      "label": "Quantization Kernel — INT4-NL",
+      "family": "quantization dot-product"
+    },
+    "ggml_vec_dot_q4_1_q8_1": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.071429, 0.0, 0.214286, 0.150794, 0.095238, 0.039683, 0.015873, 0.02381, 0.047619, 0.150794, 0.190476],
+      "source_offset_hex": "0x4d2b0",
+      "source_size_bytes": 504,
+      "label": "Quantization Kernel — INT4+1",
+      "family": "quantization dot-product"
+    },
+    "ggml_vec_dot_q5_1_q8_1": {
+      "bins": [0.0, 0.0, 0.026178, 0.0, 0.0, 0.073298, 0.0, 0.188482, 0.157068, 0.109948, 0.031414, 0.010471, 0.104712, 0.041885, 0.120419, 0.136126],
+      "source_offset_hex": "0x4d984",
+      "source_size_bytes": 764,
+      "label": "Quantization Kernel — INT5+1",
+      "family": "quantization dot-product"
+    },
+    "ggml_vec_dot_mxfp4_q8_0": {
+      "bins": [0.0, 0.0, 0.0, 0.0, 0.0, 0.079365, 0.0, 0.15873, 0.206349, 0.134921, 0.039683, 0.015873, 0.063492, 0.087302, 0.087302, 0.126984],
+      "source_offset_hex": "0x4d4b0",
+      "source_size_bytes": 504,
+      "label": "Quantization Kernel — MX-FP4",
+      "family": "quantization dot-product"
+    }
+  }
+}
