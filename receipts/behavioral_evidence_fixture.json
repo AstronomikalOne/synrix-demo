@@ -1,90 +1,51 @@
 {
-  "_note": "Real function-level behavioral fingerprints from llama-cli (1921 functions). Similarities are real cosine distances between opcode fingerprint vectors.",
-  "corpus_n": 1921,
-  "corpus_source": "llama.cpp static binary \u2014 1921 function behavioral profiles",
+  "_note": "Metadata and provenance for the behavioral evidence demo. Similarity values computed at runtime from phifp_corpus.json (source binary sha8=034dd747, test-quantize-perf NATIVE=OFF). Query = ggml_vec_dot_q8_0_q8_0 (firmware_v1_2 baseline). Corpus = 5 named quantization functions from the same binary.",
+  "corpus_n": 5,
+  "corpus_source": "test-quantize-perf sha8=034dd747 — 5 named function behavioral profiles (fixture mode); live mode searches full lattice",
   "act1": {
     "firmware_a": {
       "label": "firmware_v1_2.bin",
       "function": "ggml_vec_dot_q8_0_q8_0",
-      "collected": "2026-03-14",
-      "bins": {
-        "0": 0.0,
-        "1": 0.0,
-        "2": 0.0,
-        "3": 0.0,
-        "4": 0.0,
-        "5": 0.1262,
-        "6": 0.0,
-        "7": 0.233,
-        "8": 0.1553,
-        "9": 0.0971,
-        "10": 0.0485,
-        "11": 0.0194,
-        "12": 0.0194,
-        "13": 0.0388,
-        "14": 0.1456,
-        "15": 0.1165
-      }
+      "collected": "2026-03-14"
     },
     "firmware_b": {
       "label": "firmware_v1_3.bin",
       "function": "ggml_vec_dot_f16",
-      "collected": "2026-05-02",
-      "bins": {
-        "0": 0.0,
-        "1": 0.0,
-        "2": 0.0,
-        "3": 0.0,
-        "4": 0.0,
-        "5": 0.1094,
-        "6": 0.0469,
-        "7": 0.1406,
-        "8": 0.2031,
-        "9": 0.0938,
-        "10": 0.125,
-        "11": 0.0312,
-        "12": 0.0,
-        "13": 0.0,
-        "14": 0.1406,
-        "15": 0.1094
-      }
+      "collected": "2026-05-02"
     },
-    "similarity": 0.9236,
+    "similarity": 0.9371,
     "regions": {
       "changed": [
         {
           "name": "NEON/SIMD compute density",
-          "bins": [
-            7
-          ],
+          "bins": [7],
           "before": 0.233,
-          "after": 0.141,
-          "delta": "-0.092"
+          "after": 0.145,
+          "delta": "-0.088"
         },
         {
           "name": "control flow intensity",
-          "bins": [
-            10,
-            11
-          ],
-          "before": 0.034,
-          "after": 0.078,
-          "delta": "+0.044"
+          "bins": [10, 11],
+          "before": 0.049,
+          "after": 0.097,
+          "delta": "+0.048"
         },
         {
           "name": "memory access pattern",
-          "bins": [
-            6
-          ],
+          "bins": [6],
           "before": 0.0,
-          "after": 0.047,
-          "delta": "+0.047"
+          "after": 0.048,
+          "delta": "+0.048"
+        },
+        {
+          "name": "data processing (register)",
+          "bins": [8, 9],
+          "before": 0.155,
+          "after": 0.210,
+          "delta": "+0.054"
         }
       ],
       "unchanged": [
-        {
-          "name": "data processing (register)"
-        },
         {
           "name": "SIMD/FP arithmetic"
         },
@@ -95,47 +56,47 @@
     }
   },
   "act2": {
-    "query_label": "firmware_v1_3.bin (affected profile)",
+    "query_label": "firmware_v1_2.bin (baseline profile)",
     "query_function": "ggml_vec_dot_q8_0_q8_0",
     "matches": [
       {
         "rank": 1,
-        "label": "Quantization Kernel \u2014 INT4-NL",
-        "function": "ggml_vec_dot_iq4_nl_q8_0",
-        "similarity": 0.9659,
+        "label": "Quantization Kernel — INT4+1",
+        "function": "ggml_vec_dot_q4_1_q8_1",
+        "similarity": 0.9688,
         "collected": "2026-03-14"
       },
       {
         "rank": 2,
-        "label": "Quantization Kernel \u2014 INT4+1",
-        "function": "ggml_vec_dot_q4_1_q8_1",
-        "similarity": 0.963,
+        "label": "Quantization Kernel — INT4-NL",
+        "function": "ggml_vec_dot_iq4_nl_q8_0",
+        "similarity": 0.9571,
         "collected": "2026-03-14"
       },
       {
         "rank": 3,
-        "label": "Quantization Kernel \u2014 INT5+1",
+        "label": "Quantization Kernel — INT5+1",
         "function": "ggml_vec_dot_q5_1_q8_1",
-        "similarity": 0.9559,
+        "similarity": 0.9488,
         "collected": "2026-03-14"
       },
       {
         "rank": 4,
-        "label": "Quantization Kernel \u2014 MX-FP4",
-        "function": "ggml_vec_dot_mxfp4_q8_0",
-        "similarity": 0.9453,
+        "label": "ggml_vec_dot_f16",
+        "function": "ggml_vec_dot_f16",
+        "similarity": 0.9371,
         "collected": "2026-03-14"
       }
     ]
   },
   "act3": {
-    "label": "Quantization Kernel \u2014 INT4-NL",
-    "function": "ggml_vec_dot_iq4_nl_q8_0",
-    "source": "Runtime Binary \u2014 Quantization Family",
-    "collected": "2026-03-14",
+    "label": "Quantization Kernel — INT4+1",
+    "function": "ggml_vec_dot_q4_1_q8_1",
+    "source": "System Library Corpus",
+    "collected": "live",
     "validated": "PASS",
     "validation_checks": 7,
-    "similarity_to_query": 0.9659,
+    "similarity_to_query": 0.9688,
     "receipt_available": true,
     "provenance": [
       {

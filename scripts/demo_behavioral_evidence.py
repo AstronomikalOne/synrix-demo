@@ -440,7 +440,7 @@ def _load_corpus_fixture() -> dict:
     ts = fixture_meta["act3"]["provenance"][0]["timestamp"]
 
     return {
-        "corpus_n": fixture_meta.get("corpus_n", len(corpus["behavioral_corpus"])),
+        "corpus_n": len(corpus_entries),
         "_source": f"computed from phifp_corpus.json  (sha8={corpus['source_binary']['sha8']})",
         "act1": {
             "firmware_a": {"label": "firmware_v1_2.bin",
@@ -453,7 +453,7 @@ def _load_corpus_fixture() -> dict:
             "regions": {"changed": changed, "unchanged": unchanged},
         },
         "act2": {
-            "query_label": f"{fixture_meta['act2']['query_label']}",
+            "query_label": fixture_meta["act2"]["query_label"],
             "matches": matches[:4],
         },
         "act3": {

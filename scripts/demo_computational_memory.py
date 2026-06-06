@@ -106,8 +106,9 @@ def _act_kv_memory(fixtures: bool) -> None:
     _pause(_PAUSE)
 
     if fixtures or has_cached:
-        display_cold = cold_ms or 60538  # bench receipt: 650-token cold prefill, Jetson Orin Nano
-        _info(f"Run 1: {display_cold/1000:.1f}s  (cold prefill, no prior state)")
+        display_cold = cold_ms or 60538
+        label = "cold prefill, no prior state" if cold_ms else "bench receipt — Jetson Orin Nano, 2026-06-05"
+        _info(f"Run 1: {display_cold/1000:.1f}s  ({label})")
     else:
         from kv_prefill_cache import store as _kvc_store
         t0   = time.monotonic()
@@ -128,8 +129,8 @@ def _act_kv_memory(fixtures: bool) -> None:
     _pause(_PAUSE)
 
     if fixtures:
-        cached_ms = 1367  # bench receipt: 650-token cached reload, Jetson Orin Nano
-        _info(f"Run 2: {cached_ms/1000:.2f}s  (retrieved from artifact store)")
+        cached_ms = 1367
+        _info(f"Run 2: {cached_ms/1000:.2f}s  (bench receipt — retrieved from artifact store)")
     elif blob_path:
         t0 = time.monotonic()
         subprocess.run([_LLAMA_BIN, "-m", _MODEL_PATH, "-ngl", "0", "-t", "4",

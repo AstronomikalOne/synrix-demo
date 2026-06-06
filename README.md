@@ -134,32 +134,35 @@ Three-phase demo of PHI's optimization memory system. Works from any clone with 
 python3 scripts/demo_phi_transfer.py
 ```
 
-Expected output:
+Expected output (all values computed at runtime from `receipts/phifp_corpus.json`):
 
 ```
 Act 1 — Memory: what PHI stored
-  PHIFP:ggml_vec_dot_q8_0_q8_0  dead@30   1.53×  certified
-  PHIFP:ggml_vec_dot_q4_0_q8_0  swap@1,2  1.33×  sound
-  PHIFP:ggml_vec_dot_q4_K_q8_K  dead@0    1.27×  certified
-  PHIFP:ggml_vec_dot_q5_K_q8_K  dead@29   1.44×  certified
+  ggml_vec_dot_q8_0_q8_0  dead@30   1.53×  certified  (GGML_NATIVE=OFF, LTO=OFF)
+  ggml_vec_dot_q4_0_q8_0  swap@1,2  1.33×  sound
+  ggml_vec_dot_q4_K_q8_K  dead@0    1.27×  certified
+  ggml_vec_dot_q5_K_q8_K  dead@29   1.44×  certified
 
   ✓  Lattice stores the mutation descriptor. Retrieval is sub-millisecond.
 
 Act 2 — Transfer gate: does the mutation apply to a new binary?
-  expected  c31ca64e  →  actual  c21ca64e
-  △  MISS (exact) — byte differs; trying register-normalized comparison…
+  Source: GGML_NATIVE=OFF, LTO=OFF (sha8: 034dd747)
+  Target: GGML_NATIVE=ON, LTO=ON, -mcpu=cortex-a78ae
 
-  Mask bits[4:0] (Rd — output register field):
-    expected masked  0x4ea61cc0
-    actual   masked  0x4ea61cc0  ← MATCH
+  expected  c31ca64e  (stored PHIFP descriptor, instr[30])
+  actual    c21ca64e  (target binary instr[30])
+  △  MISS (exact) — codegen changed; trying register-normalized comparison…
 
+  bit 0 of Rd field — register 3 → register 2 (Rd-rename only)
+  Mask bits[4:0]: both → 0x4ea61cc0  ← MATCH
   ✓  TRANSFER_CANDIDATE — Rd-rename only (L1)
   ✓  2/4 correct promotions. 2/4 correct rejections.
+     Wall-clock on transfer candidate: 0.986×  (NATIVE=ON compiler already optimal)
 
 Act 3 — Recognition: identify by behavior profile, not by name
-  func_offset  0xca68  (102 instructions, no symbol provided)
+  func_offset  0xca68  query sha8=16c03373  (102 instructions, symbol stripped)
+  Cosine search: 0.2 ms  (4 corpus nodes)
 
-  ANN search results:
     [1]  PHIFP:ggml_vec_dot_q8_0_q8_0    0.9877    1.53×
     [2]  PHIFP:ggml_vec_dot_q4_0_q8_0    0.9877    1.33×
     [3]  PHIFP:ggml_vec_dot_q4_K_q8_K    0.9426    1.27×
@@ -188,7 +191,7 @@ Receipts: [`receipts/phi_transfer_phase2_receipt.json`](receipts/phi_transfer_ph
 
 Three-act demo answering the questions a customer actually has. No explanation of embeddings, ANN, or PMU internals required.
 
-Corpus: 1,921 function-level behavioral fingerprints from a real runtime binary. Every similarity score is a real cosine distance between opcode fingerprint vectors.
+Fixture mode computes cosine similarity at runtime from `receipts/phifp_corpus.json` (5 named functions, source binary sha8=034dd747). Live mode searches a full lattice. Every similarity score is a real cosine distance between opcode fingerprint vectors.
 
 ```bash
 python3 scripts/demo_behavioral_evidence.py
@@ -197,19 +200,21 @@ python3 scripts/demo_behavioral_evidence.py
 Expected output:
 
 ```
+  [computed from phifp_corpus.json  (sha8=034dd747)]
+
 Act 1  —  What changed?
   firmware_v1_2.bin   collected 2026-03-14
   firmware_v1_3.bin   collected 2026-05-02
 
-  Behavior Similarity:  0.9236
+  Behavior Similarity:  0.9371
 
   Changed Regions:
-    * NEON/SIMD compute density  (-0.092)
-    * control flow intensity  (+0.044)
-    * memory access pattern  (+0.047)
+    * NEON/SIMD compute density  (-0.088)
+    * control flow intensity  (+0.048)
+    * memory access pattern  (+0.048)
+    * data processing (register)  (+0.054)
 
   Unchanged Regions:
-    * data processing (register)
     * SIMD/FP arithmetic
     * data immediate ops
 
@@ -217,25 +222,25 @@ Act 1  —  What changed?
   Synrix tells you behavior changed.
 
 Act 2  —  Where else have we seen this?
-  Searching behavioral corpus  (1,921 profiles)...
+  Searching behavioral corpus  (5 profiles)...
 
   Top Matches
 
-    1.  Quantization Kernel — INT4-NL    0.9659
-    2.  Quantization Kernel — INT4+1     0.9630
-    3.  Quantization Kernel — INT5+1     0.9559
-    4.  Quantization Kernel — MX-FP4     0.9453
+    1.  Quantization Kernel — INT4+1     0.9688
+    2.  Quantization Kernel — INT4-NL    0.9571
+    3.  Quantization Kernel — INT5+1     0.9488
+    4.  ggml_vec_dot_f16                 0.9371
 
   This is not a binary diff.
   This is behavioral search across a corpus.
 
 Act 3  —  Show me the evidence.
   Behavioral Artifact
-    ID:                    ggml_vec_dot_iq4_nl_q8_0
-    Source:                Runtime Binary — Quantization Family
-    Collected:             2026-03-14
+    ID:                    ggml_vec_dot_q4_1_q8_1
+    Source:                System Library Corpus
+    Collected:             live
     Validated:             PASS  (7/7 checks)
-    Similarity to query:   0.9659
+    Similarity to query:   0.9688
     Receipt:               Available
 
   Provenance Chain
@@ -276,19 +281,20 @@ LLAMA_BIN=/path/to/llama-cli MODEL_PATH=/path/to/model.gguf \
   PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_computational_memory.py
 ```
 
-Expected output:
+Expected output (fixtures mode — bench receipt values from Jetson Orin Nano, 2026-06-05):
 
 ```
 ── Act 1  ·  Inference State Memory ─────────────────────────
-  first execution        80.1s
-  artifact retrieved     1.45s
-  cost avoided           55×
+  first execution        60.5s  (bench receipt — Jetson Orin Nano, 2026-06-05)
+  artifact retrieved     1.37s  (bench receipt — retrieved from artifact store)
+  cost avoided           44×
   [PASS] Prior inference state retrieved. Prefill skipped.
 
 ── Act 2  ·  Binary Optimization Memory ─────────────────────
   oracle speedup         1.44×
   safety validation      8/8 passes
   risk classification    certified
+  wall-clock inference   +5.9%  (pp512, Qwen2.5-1.5B Q5_K_M, 4 CPU threads)
   [PASS] Prior optimization retrieved. Rediscovery skipped.
 
 ── Act 3  ·  Workload Behavioral Memory ─────────────────────
@@ -356,7 +362,7 @@ adapter.submit_full_notification(incident) # 72h deadline
 adapter.submit_final_report(incident)     # 14-day deadline
 ```
 
-Pipeline receipt (17/17 checks): [`receipts/cra_pipeline_receipt.jsonl`](https://github.com/AstronomikalOne/synrix-demo)
+CRA Article 14 pipeline: 17-check validation suite (receipt not included in public repo).
 
 ---
 
