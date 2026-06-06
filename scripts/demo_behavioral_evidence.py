@@ -90,8 +90,12 @@ def act1(fix: dict, t: T, p: float) -> None:
 
     print(f"  {t.yellow('Changed Regions:')}")
     for region in a1["regions"]["changed"]:
-        print(f"    {t.bold('*')} {region['name']}")
-        print(t.dim(f"      {region['note']}"))
+        note = region.get("note", "")
+        delta_str = region.get("delta", "")
+        suffix = f"  ({delta_str})" if delta_str else ""
+        print(f"    {t.bold('*')} {region['name']}{t.dim(suffix)}")
+        if note:
+            print(t.dim(f"      {note}"))
     print()
     pause(p * 0.3)
 
@@ -161,7 +165,8 @@ def act3(fix: dict, t: T, p: float) -> None:
 
     print(f"  {t.bold('Behavioral Artifact')}")
     print()
-    print(f"    {'ID:':22} {t.white(a3['wave_id'])}")
+    artifact_id = a3.get("wave_id") or a3.get("function", "")
+    print(f"    {'ID:':22} {t.white(artifact_id)}")
     print(f"    {'Source:':22} {a3['source']}")
     print(f"    {'Collected:':22} {a3['collected']}")
     print(f"    {'Validated:':22} {t.green(a3['validated'])}  ({a3['validation_checks']}/7 checks)")
