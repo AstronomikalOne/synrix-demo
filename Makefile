@@ -1,5 +1,5 @@
 .PHONY: build run run-stress run-expert run-fresh run-interactive setup setup-corpus \
-  demo-screen-record demo-operational-loop demo-computational-memory
+  demo-screen-record demo-operational-loop demo-computational-memory demo-behavioral-evidence
 
 # ── Docker path (recommended) ─────────────────────────────────────────────────
 build:
@@ -53,6 +53,11 @@ demo-phi-transfer:
 # Without those env vars, falls back to --fixtures automatically.
 demo-computational-memory:
 	PYTHONPATH=. SYNRIX_LIB_PATH=build python3 scripts/demo_computational_memory.py
+
+# Behavioral evidence demo — three acts: diff, search, prove.
+# Works from any clone (fixture mode). Live mode: SYNRIX_LATTICE=... make demo-behavioral-evidence ARGS="--live"
+demo-behavioral-evidence:
+	python3 scripts/demo_behavioral_evidence.py $(ARGS)
 
 # Operational loop: streams events through full stack, halts on foreign domain.
 # Writes receipt to receipts/latest_operational_loop.jsonl.

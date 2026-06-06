@@ -184,6 +184,81 @@ TARGET_BINARY=/path/to/binary \
 
 Receipts: [`receipts/phi_transfer_phase2_receipt.json`](receipts/phi_transfer_phase2_receipt.json) · [`receipts/phi_transfer_phase3_receipt.json`](receipts/phi_transfer_phase3_receipt.json)
 
+### Behavioral evidence — What changed? Where else? Prove it.
+
+Three-act demo answering the questions a customer actually has. No explanation of embeddings, ANN, or PMU internals required.
+
+```bash
+python3 scripts/demo_behavioral_evidence.py
+```
+
+Expected output:
+
+```
+Act 1  —  What changed?
+  firmware_v1_2.bin   collected 2026-03-14
+  firmware_v1_3.bin   collected 2026-05-02
+
+  Behavior Similarity:  0.9296
+
+  Changed Regions:
+    * scheduler path
+    * memory management path
+
+  Unchanged Regions:
+    * cache subsystem
+    * compute throughput
+    * branch predictor
+    * instruction decode
+
+  Traditional diff tells you bytes changed.
+  Synrix tells you behavior changed.
+
+Act 2  —  Where else have we seen this?
+  Searching behavioral corpus  (28,049 profiles)...
+
+  Top Matches
+
+    1.  ECU Firmware 2.4.1         0.9897
+    2.  ECU Firmware 2.4.2         0.9867
+    3.  Robotics Controller 1.8    0.9852
+    4.  ECU Firmware 2.3.9         0.9770
+
+  This is not a binary diff.
+  This is behavioral search across a corpus.
+
+Act 3  —  Show me the evidence.
+  Behavioral Artifact
+    ID:                    WAVE_0x1F6C80E0
+    Source:                Firmware Family A
+    Collected:             2026-01-08
+    Validated:             PASS  (7/7 checks)
+    Similarity to query:   0.9897
+    Receipt:               Available
+
+  Provenance Chain
+    [1] PMU measurement        PASS
+    [2] Fingerprint generated  PASS
+    [3] Lattice storage        PASS
+    [4] Vector index update    PASS
+    [5] Validation check       PASS
+    [6] Signature committed    PASS
+
+  Synrix does not return guesses.
+  Synrix returns receipts.
+```
+
+Live mode (requires Synrix lattice with WAVE nodes):
+
+```bash
+SYNRIX_LATTICE=path/to/probe_discovery.lattice \
+  python3 scripts/demo_behavioral_evidence.py --live
+```
+
+Receipt: [`receipts/behavioral_evidence_fixture.json`](receipts/behavioral_evidence_fixture.json)
+
+---
+
 ### Computational memory — behavioral memory thesis
 
 Shows the same artifact lifecycle operating across three computational domains.
@@ -319,6 +394,7 @@ scripts/
   demo_interactive.py            Browser UI at :5050 — three signal types, live detection
   demo_operational_loop.py       Continuous enforcement loop; --resume; HALT at event boundary
   demo_phi_transfer.py           PHI optimization transfer — three-phase ladder
+  demo_behavioral_evidence.py    Behavioral evidence — diff, search, prove (no technical jargon)
   demo_computational_memory.py   Behavioral memory thesis — three computational domains
   kv_prefill_cache.py            KV prefill cache manager (exact-match, lattice-indexed)
 

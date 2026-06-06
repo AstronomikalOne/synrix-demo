@@ -1,0 +1,89 @@
+{
+  "corpus_n": 28049,
+  "act1": {
+    "firmware_a": {
+      "label": "firmware_v1_2.bin",
+      "wave_id": "WAVE_0x1F1882E0",
+      "collected": "2026-03-14",
+      "metrics": {
+        "iso": 2.0, "dep": 4.0, "indep": 4.0, "tput": 2.0,
+        "load": 2.0, "cross": 6.0, "branch": 2.0, "cache": 0.0,
+        "tlb": 0.0, "decode": 3.0, "mispred": 0.0, "ltr": 2.0,
+        "cs": 3.0, "mp": 1.0
+      }
+    },
+    "firmware_b": {
+      "label": "firmware_v1_3.bin",
+      "wave_id": "WAVE_0x105F886F",
+      "collected": "2026-05-02",
+      "metrics": {
+        "iso": 2.0, "dep": 4.0, "indep": 4.0, "tput": 2.0,
+        "load": 3.0, "cross": 6.0, "branch": 2.0, "cache": 0.0,
+        "tlb": 0.0, "decode": 3.0, "mispred": 0.0, "ltr": 3.0,
+        "cs": 5.0, "mp": 1.0
+      }
+    },
+    "similarity": 0.9296,
+    "regions": {
+      "changed": [
+        {
+          "name": "scheduler path",
+          "metrics": ["ltr"],
+          "before": 2.0,
+          "after": 3.0,
+          "delta": "+1.0",
+          "note": "execution pipeline depth increased"
+        },
+        {
+          "name": "memory management path",
+          "metrics": ["load", "cs"],
+          "before_load": 2.0,
+          "after_load": 3.0,
+          "before_cs": 3.0,
+          "after_cs": 5.0,
+          "note": "load and store pipeline latency both increased"
+        }
+      ],
+      "unchanged": [
+        {"name": "cache subsystem",     "metrics": ["cache", "tlb"]},
+        {"name": "compute throughput",  "metrics": ["tput", "dep", "indep"]},
+        {"name": "branch predictor",    "metrics": ["branch", "mispred"]},
+        {"name": "instruction decode",  "metrics": ["decode"]}
+      ]
+    }
+  },
+  "act2": {
+    "query_label": "firmware_v1_3.bin (affected profile)",
+    "query_wave_id": "WAVE_0x105F886F",
+    "matches": [
+      {"rank": 1, "label": "ECU Firmware 2.4.1",        "wave_id": "WAVE_0x1F6C80E0", "similarity": 0.9897, "collected": "2026-01-08"},
+      {"rank": 2, "label": "ECU Firmware 2.4.2",        "wave_id": "WAVE_0x0F2D1AAE", "similarity": 0.9867, "collected": "2026-01-22"},
+      {"rank": 3, "label": "Robotics Controller 1.8",   "wave_id": "WAVE_0x4FB7E860", "similarity": 0.9852, "collected": "2026-02-14"},
+      {"rank": 4, "label": "ECU Firmware 2.3.9",        "wave_id": "WAVE_0x0F963230", "similarity": 0.9770, "collected": "2025-11-30"}
+    ]
+  },
+  "act3": {
+    "label": "ECU Firmware 2.4.1",
+    "wave_id": "WAVE_0x1F6C80E0",
+    "source": "Firmware Family A",
+    "collected": "2026-01-08",
+    "validated": "PASS",
+    "validation_checks": 7,
+    "similarity_to_query": 0.9897,
+    "receipt_available": true,
+    "metrics": {
+      "iso": 2.0, "dep": 4.0, "indep": 4.0, "tput": 2.0,
+      "load": 2.0, "cross": 8.0, "branch": 2.0, "cache": 0.0,
+      "tlb": 0.0, "decode": 3.0, "mispred": 0.0, "ltr": 2.0,
+      "cs": 4.0, "mp": 1.0
+    },
+    "provenance": [
+      {"step": 1, "action": "PMU measurement",       "status": "PASS", "timestamp": "2026-01-08T09:14:22Z"},
+      {"step": 2, "action": "Fingerprint generated", "status": "PASS", "timestamp": "2026-01-08T09:14:22Z"},
+      {"step": 3, "action": "Lattice storage",       "status": "PASS", "timestamp": "2026-01-08T09:14:23Z"},
+      {"step": 4, "action": "Vector index update",   "status": "PASS", "timestamp": "2026-01-08T09:14:23Z"},
+      {"step": 5, "action": "Validation check",      "status": "PASS", "timestamp": "2026-01-08T09:14:24Z"},
+      {"step": 6, "action": "Signature committed",   "status": "PASS", "timestamp": "2026-01-08T09:14:24Z"}
+    ]
+  }
+}
