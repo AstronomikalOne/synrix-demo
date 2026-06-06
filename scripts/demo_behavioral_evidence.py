@@ -219,7 +219,7 @@ def closing(t: T, p: float) -> None:
 
 # ── live mode helpers ──────────────────────────────────────────────────────────
 
-def _load_wave_live(lattice_path: str, limit: int = 5000) -> dict:
+def _load_wave_live(lattice_path: str, limit: int = 12000) -> dict:
     import numpy as np
     sys.path.insert(0, str(ROOT / "python-sdk"))
     from synrix.raw_backend import RawSynrixBackend
@@ -243,7 +243,11 @@ def _load_wave_live(lattice_path: str, limit: int = 5000) -> dict:
         return vec / norm if norm > 0 else vec
 
     rb = RawSynrixBackend(lattice_path)
-    nodes = rb.find_by_prefix("WAVE_", limit=limit, raw=False)
+    # Prefer named-function corpus (FNFP_); fall back to opcode WAVE_ nodes
+    nodes = rb.find_by_prefix("FNFP_", limit=limit, raw=False)
+    use_named = len(nodes) > 0
+    if not use_named:
+        nodes = rb.find_by_prefix("WAVE_", limit=limit, raw=False)
 
     valid = []
     for node in nodes:
@@ -254,7 +258,9 @@ def _load_wave_live(lattice_path: str, limit: int = 5000) -> dict:
         m = parse_flat_kv(data)
         if not m:
             continue
-        valid.append({"name": name, "metrics": {k: float(m[k]) for k in METRIC_KEYS}})
+        label = m.get("fn", name) if use_named else name
+        valid.append({"name": name, "label": label,
+                      "metrics": {k: float(m[k]) for k in METRIC_KEYS}})
 
     vecs = np.stack([to_vec(v["metrics"]) for v in valid])
 
@@ -321,13 +327,11 @@ def _load_wave_live(lattice_path: str, limit: int = 5000) -> dict:
             unchanged.append({"name": region, "metrics": keys})
 
     # Act 2: top 4 near-neighbors
-    firmware_labels = ["ECU Firmware 2.4.1", "ECU Firmware 2.4.2",
-                       "Robotics Controller 1.8", "ECU Firmware 2.3.9"]
     matches = []
     for rank, (sim, idx) in enumerate(top4[:4]):
         matches.append({
             "rank": rank + 1,
-            "label": firmware_labels[rank],
+            "label": valid[idx]["label"],
             "wave_id": valid[idx]["name"],
             "similarity": round(sim, 4),
             "collected": "2026-xx-xx",
@@ -342,8 +346,8 @@ def _load_wave_live(lattice_path: str, limit: int = 5000) -> dict:
     now = datetime.datetime.now(datetime.timezone.utc)
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     provenance = [
-        {"step": 1, "action": "PMU measurement",       "status": "PASS", "timestamp": ts},
-        {"step": 2, "action": "Fingerprint generated", "status": "PASS", "timestamp": ts},
+        {"step": 1, "action": "Behavioral fingerprint", "status": "PASS", "timestamp": ts},
+        {"step": 2, "action": "Fingerprint indexed",   "status": "PASS", "timestamp": ts},
         {"step": 3, "action": "Lattice storage",       "status": "PASS", "timestamp": ts},
         {"step": 4, "action": "Vector index update",   "status": "PASS", "timestamp": ts},
         {"step": 5, "action": "Validation check",      "status": "PASS", "timestamp": ts},
@@ -353,22 +357,22 @@ def _load_wave_live(lattice_path: str, limit: int = 5000) -> dict:
     return {
         "corpus_n": len(valid),
         "act1": {
-            "firmware_a": {"label": "firmware_v1_2.bin", "wave_id": anchor["name"],
+            "firmware_a": {"label": anchor["label"], "wave_id": anchor["name"],
                            "collected": "2026-xx-xx", "metrics": anchor["metrics"]},
-            "firmware_b": {"label": "firmware_v1_3.bin", "wave_id": profile_b["name"],
+            "firmware_b": {"label": profile_b["label"], "wave_id": profile_b["name"],
                            "collected": "2026-xx-xx", "metrics": profile_b["metrics"]},
             "similarity": round(act1_sim, 4),
             "regions": {"changed": changed, "unchanged": unchanged},
         },
         "act2": {
-            "query_label": "firmware_v1_3.bin (affected profile)",
+            "query_label": f"{profile_b['label']} (query)",
             "query_wave_id": anchor["name"],
             "matches": matches,
         },
         "act3": {
-            "label": firmware_labels[0],
+            "label": valid[best_idx]["label"],
             "wave_id": valid[best_idx]["name"],
-            "source": "Firmware Family A",
+            "source": "System Library Corpus",
             "collected": "live",
             "validated": "PASS",
             "validation_checks": 7,
