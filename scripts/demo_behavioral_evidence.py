@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SYNRIX_BEP_KEY=<64-hex-chars> enables live HMAC signing (BEP-SIG-001).
+# Without it the evidence_signature shows status=pending.
 """
 demo_behavioral_evidence.py
 
@@ -28,6 +30,8 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bep import key_from_env, seal_bep
 
 # ── terminal ───────────────────────────────────────────────────────────────────
 
@@ -177,6 +181,36 @@ def act3(fix: dict, t: T, p: float) -> None:
         status_str = t.green(step["status"])
         ts = step["timestamp"]
         print(f"    [{step['step']}] {step['action']:<30}  {status_str}  {t.dim(ts)}")
+    print()
+    pause(p * 0.5)
+
+    # BEP-SIG-001: build signable payload and seal
+    bep_block = {
+        "bep_version": "1.0",
+        "artifact_id": artifact_id,
+        "source": a3["source"],
+        "similarity": a3["similarity_to_query"],
+        "validated": a3["validated"],
+        "validation_chain": a3["provenance"],
+    }
+    key = key_from_env()
+    if key:
+        bep_wrapper = {"x-synrix-bep": bep_block}
+        seal_bep(bep_wrapper, key)
+        sig = bep_block["evidence_signature"]
+    else:
+        sig = {"status": "pending"}
+
+    print(f"  {t.bold('Evidence Signature')}")
+    print()
+    if sig["status"] == "signed":
+        print(f"    {'Algorithm:':22} {sig['algorithm']}")
+        print(f"    {'Value:':22} {t.green(sig['value'][:16])}…")
+        print(f"    {'Signed at:':22} {sig['signed_at']}")
+        print(f"    {'Status:':22} {t.green('SIGNED')}")
+    else:
+        print(f"    {'Status:':22} {t.yellow('pending')}  "
+              f"{t.dim('(set SYNRIX_BEP_HMAC_KEY to enable HMAC signing)')}")
     print()
     pause(p)
 
