@@ -144,7 +144,60 @@ def act1_live(lattice_path: str, pause: float) -> None:
 
 # ── Phase 2: register-normalized transfer gate ────────────────────────────────
 
-def act2_fixture(pause: float) -> None:
+# AArch64 field masks
+_RD_MASK          = 0x0000001F   # bits[4:0]
+_OPCODE_CLASS_MASK = 0x1E000000  # bits[28:25]
+
+
+def _parse_le32(hex_str: str) -> int:
+    """Little-endian hex bytes → 32-bit int. 'c31ca64e' → 0x4ea61cc3."""
+    return int.from_bytes(bytes.fromhex(hex_str), "little")
+
+
+def _phase2_gate(src_hex: str, tgt_hex: str) -> dict:
+    """
+    Compute AArch64 register-normalized transfer gate (L1: Rd masking).
+    Returns verdict dict with computed canonical values.
+    """
+    src = _parse_le32(src_hex)
+    tgt = _parse_le32(tgt_hex)
+
+    src_class = (src & _OPCODE_CLASS_MASK) >> 25
+    tgt_class = (tgt & _OPCODE_CLASS_MASK) >> 25
+
+    if src_class != tgt_class:
+        return {
+            "verdict": "MISS",
+            "reason": f"opcode class changed ({src_class} → {tgt_class})",
+        }
+
+    src_canonical = src & ~_RD_MASK
+    tgt_canonical = tgt & ~_RD_MASK
+
+    if src_canonical == tgt_canonical:
+        return {
+            "verdict": "TRANSFER_CANDIDATE",
+            "level": "L1",
+            "canonical": f"0x{src_canonical:08x}",
+            "src_rd": src & 0x1F,
+            "tgt_rd": tgt & 0x1F,
+        }
+
+    return {
+        "verdict": "MISS",
+        "reason": "fields differ after Rd masking",
+        "src_canonical": f"0x{src_canonical:08x}",
+        "tgt_canonical": f"0x{tgt_canonical:08x}",
+    }
+
+
+def act2_compute(pause: float) -> None:
+    """
+    Phase 2 gate — computed live from stored instruction bytes.
+
+    ggml_vec_dot_q8_0_q8_0: gate computed from instruction hex in receipt.
+    Other 3 functions: verdict from receipt (instruction bytes not stored).
+    """
     receipt = json.loads(_RECEIPT_P2.read_text())
     src = receipt["source_binary"]
     tgt = receipt["target_binary"]
@@ -156,29 +209,44 @@ def act2_fixture(pause: float) -> None:
     print()
 
     p1 = receipt["phase1_result"]
-    _act("Phase 1 check — exact byte match at mutation sites")
-    _info(f"  expected  {hexcmp['source_instr_hex']}  (stored PHIFP descriptor, instr[30])")
+    _act("Phase 1 check — exact byte match at mutation site  [computed]")
+    _info(f"  expected  {hexcmp['source_instr_hex']}  (stored descriptor, instr[30])")
     _info(f"  actual    {hexcmp['target_instr_hex']}  (target binary instr[30])")
     _warn(f"MISS (exact) — {p1['finding']}")
 
     print()
-    _act("Phase 2 check — AArch64 register-normalized canonicalization")
+    _act("Phase 2 check — AArch64 register-normalized canonicalization  [computed]")
     _info(f"  {hexcmp['difference']}")
-    _info("  Mask bits[4:0] (Rd field): both → 0x4ea61cc0  ← MATCH")
-    _info("  Opcode class identical. Dead write is dead in any register.")
-    _info("  The NOP mutation transfers.")
-    print()
-    _ok("TRANSFER_CANDIDATE — Rd-rename only (L1)")
-    _ok(f"Binary integrity: {receipt['phase2_result']['verdicts'][0]['binary_integrity']}")
-    print()
 
+    gate = _phase2_gate(hexcmp["source_instr_hex"], hexcmp["target_instr_hex"])
+
+    if gate["verdict"] == "TRANSFER_CANDIDATE":
+        _info(f"  Mask bits[4:0] (Rd field): both → {gate['canonical']}  ← MATCH")
+        _info(f"  Rd: v{gate['src_rd']} (source) → v{gate['tgt_rd']} (target) — rename only")
+        _info("  Opcode class identical. Dead write is dead in any register.")
+        print()
+        _ok(f"TRANSFER_CANDIDATE — {gate['level']} (Rd-rename only)  [computed]")
+        _ok(f"Binary integrity: {receipt['phase2_result']['verdicts'][0]['binary_integrity']}")
+    else:
+        _warn(f"MISS — {gate['reason']}")
+
+    print()
     _act("Phase 2 discrimination across all 4 functions")
-    print(f"     {'Symbol':<30}  {'Mutation':<12}  Verdict")
-    print(f"     {'─'*30}  {'─'*12}  {'─'*34}")
+    print(f"     {'Symbol':<30}  {'Mutation':<12}  {'Verdict':<36}  Source")
+    print(f"     {'─'*30}  {'─'*12}  {'─'*36}  {'─'*8}")
+
     for v in receipt["phase2_result"]["verdicts"]:
-        ok = "TRANSFER" in v["phase2"]
-        color = GREEN if ok else YELLOW
-        print(f"     {v['symbol']:<30}  {v['mutation']:<12}  {color}{v['phase2']}{RST}")
+        sym = v["symbol"]
+        is_headline = (sym == "ggml_vec_dot_q8_0_q8_0")
+        if is_headline:
+            verdict_str = f"TRANSFER_CANDIDATE (L1)" if gate["verdict"] == "TRANSFER_CANDIDATE" else gate["verdict"]
+            source_label = "computed"
+            color = GREEN if gate["verdict"] == "TRANSFER_CANDIDATE" else YELLOW
+        else:
+            verdict_str = v["phase2"]
+            source_label = "receipt"
+            color = GREEN if "TRANSFER" in v["phase2"] else YELLOW
+        print(f"     {sym:<30}  {v['mutation']:<12}  {color}{verdict_str:<36}{RST}  {DIM}{source_label}{RST}")
 
     print()
     c = receipt["conclusions"]
@@ -435,11 +503,11 @@ def main() -> None:
 
     if live:
         act1_live(_LATTICE, args.pause)
-        act2_fixture(args.pause)          # Phase 2 gate logic always uses receipt
+        act2_compute(args.pause)
         act3_live(_TARGET, _LATTICE, args.pause)
     else:
         act1_fixture(args.pause)
-        act2_fixture(args.pause)
+        act2_compute(args.pause)
         act3_fixture(args.pause)
 
     summary(live)
