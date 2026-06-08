@@ -69,10 +69,16 @@ independently verifiable record of behavioral evidence. It contains:
 - **Evidence signature**: HMAC-SHA256 over canonical JSON of the evidence block —
   tamper-evident, independently verifiable with a single CLI command
 
-BEPs are expressed as CycloneDX 1.6 BOMs. Organizations already using CycloneDX
-for Software Bills of Materials can integrate BEPs into existing toolchains without
-format conversion. A BEP is the dynamic complement to a static SBOM: where an SBOM
-answers *what code is in the binary*, a BEP answers *what did the binary actually do*.
+**A BEP is the dynamic complement to a static SBOM.**
+
+Most compliance toolchains already use Software Bills of Materials (SBOMs) in
+CycloneDX format. An SBOM answers: *what code is in this binary?* A BEP answers:
+*what did this binary actually do, and can you prove it?*
+
+BEPs use the same CycloneDX 1.6 format. Compliance teams that already have SBOM
+tooling can attach BEPs to existing workflows without format conversion — the
+provenance chain from code inventory to behavioral evidence stays in one document
+format, in one toolchain.
 
 ```
 verify:   SYNRIX_BEP_HMAC_KEY=<key> python3 bep_verify.py signed_bep.json
@@ -93,13 +99,13 @@ configures reporting.
 | Power draw | < 15 W |
 | Deployed footprint | Two native libraries + 12 KB routing weights |
 | Cloud dependency | None — fully air-gap capable |
-| Behavioral corpus | 94,795 vectors (CWRU demo); 8,920+ named function profiles |
-| Retrieval throughput | 165,000 QPS (aarch64 NEON path) |
-| Storage write latency | 73 µs p50 — 270× faster than SQLite equivalent |
-| Operational stability | 500,000 events, 1.09 hours, flat latency profile, zero false-positive halts |
+| Behavioral corpus | 8,920+ named function profiles; 94,795 vectors (CWRU demo) |
+| Evidence retrieval | Sub-millisecond on $250 hardware — evidence is available the moment you need it |
+| Persistence | 73 µs p50 write latency — behavioral history is a ledger, not a cache |
+| Operational stability | 500,000 events, 1.09 hours, zero false-positive halts |
 
 All numbers measured on Jetson Orin Nano (aarch64, ARMv8.2-A, Linux 5.15.148-tegra).
-x86_64 scalar path produces correct results at lower throughput.
+x86_64 scalar path produces correct results.
 
 ---
 
@@ -203,14 +209,14 @@ class behaves across all deployed units — become possible as the corpus scales
 
 | Component | Status |
 |-----------|--------|
-| Behavioral fingerprinting | Production |
-| AION512 semantic retrieval | Production |
-| Persistent knowledge lattice | Production |
-| SCM behavioral routing | Production |
-| Triple behavioral gate | Production (1.000/1.000 three domains, three seeds) |
-| BEP schema + HMAC signing | Production |
+| Behavioral fingerprinting | Operational |
+| AION512 semantic retrieval | Operational |
+| Persistent knowledge lattice | Operational |
+| SCM behavioral routing | Operational |
+| Triple behavioral gate | Validated (1.000/1.000 three independent domains, three seeds) |
+| BEP schema + HMAC signing | Operational |
 | CRA Article 14 report pipeline | Pilot-ready |
-| CycloneDX SBOM integration | Production |
+| CycloneDX SBOM integration | Operational |
 | RFC 3161 trusted timestamping | Roadmap (v1.1) |
 | Fleet telemetry agent | Roadmap (Stage 3) |
 
