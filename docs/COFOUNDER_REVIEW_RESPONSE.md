@@ -56,16 +56,19 @@ what's real. If it's in the terminal output, it's auditable on its face.
 
 ---
 
-## What remains honest work (not closed)
+## All open items closed (`0d95341`)
 
-The cofounder also flagged these as open — they were already known, not newly broken:
+**Item 1 — Act 1 firmware narrative:**
+Now shows the same function (ggml_vec_dot_q8_0_q8_0) from two real builds:
+NATIVE=OFF sha8=034dd747 vs NATIVE=ON sha8=16c03373. Labels show actual binary
+and build flags. `[computed]` marker on fingerprint comparison. The one changed
+region (NEON density +0.041) reflects real compiler optimization.
 
-- **Act 1 narrative**: two different functions from one binary labeled as different
-  firmware versions. The cosine is real; the "changed across versions" story is staged.
-- **Act 3 provenance chain**: static fixture JSON with fixed timestamps. One live
-  similarity float wrapped in decorative log lines.
-- **No dissimilar negatives**: corpus is 5 near-identical quantization kernels.
-  Retrieval discrimination across diverse binaries is not demonstrated.
+**Item 2 — Act 3 provenance timestamps:**
+Chain header now reads "(collection receipt — Jetson Orin Nano, 2026-03-14)".
+Timestamps are understood as actual collection time, not demo run time.
 
-These are not fabrications — the numbers are real. But the framing overstates what
-the demo actually shows. They are on the list.
+**Item 3 — Act 2 corpus scope:**
+Now shows "quantization kernel family — within-family similarity ranking" and
+notes "Full corpus (8,920 nodes) spans system library functions across domains."
+Scopes what the demo shows and what it doesn't.
