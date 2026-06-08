@@ -76,13 +76,19 @@ def act1(fix: dict, t: T, p: float) -> None:
     print()
     pause(p)
 
-    print(f"  Input")
-    print(f"    {t.cyan(fa['label'])}   collected {fa['collected']}")
-    print(f"    {t.cyan(fb['label'])}   collected {fb['collected']}")
+    print(f"  Same function, two builds of the same binary")
+    print()
+    print(f"    {t.cyan(fa['label'])}")
+    print(f"    {t.dim(fa.get('build', ''))}")
+    print(f"    function: {fa.get('function', '')}   collected {fa['collected']}")
+    print()
+    print(f"    {t.cyan(fb['label'])}")
+    print(f"    {t.dim(fb.get('build', ''))}")
+    print(f"    function: {fb.get('function', '')}   collected {fb['collected']}")
     print()
     pause(p * 0.5)
 
-    print(f"  Comparing behavioral fingerprints...")
+    print(f"  Comparing behavioral fingerprints  [computed]...")
     pause(p * 0.3)
 
     print()
@@ -130,7 +136,8 @@ def act2(fix: dict, t: T, p: float) -> None:
     print()
     pause(p * 0.5)
 
-    print(f"  Searching behavioral corpus  ({corpus_n:,} profiles)...")
+    corpus_scope = fix.get("corpus_scope", f"{corpus_n} profiles")
+    print(f"  Searching behavioral corpus  ({corpus_scope})...")
     pause(p * 0.3)
 
     print()
@@ -140,6 +147,8 @@ def act2(fix: dict, t: T, p: float) -> None:
         sim_str = t.green(f"{m['similarity']:.4f}")
         print(f"    {m['rank']}.  {m['label']:<32}  {sim_str}")
     print()
+    print(t.dim(f"  Corpus: {corpus_n} functions, same binary family."))
+    print(t.dim(f"  Full corpus (8,920 nodes) spans system library functions across domains."))
     pause(p)
 
     print(t.dim("  This is not a binary diff."))
@@ -168,14 +177,17 @@ def act3(fix: dict, t: T, p: float) -> None:
     artifact_id = a3.get("wave_id") or a3.get("function", "")
     print(f"    {'ID:':22} {t.white(artifact_id)}")
     print(f"    {'Source:':22} {a3['source']}")
-    print(f"    {'Collected:':22} {a3['collected']}")
     print(f"    {'Validated:':22} {t.green(a3['validated'])}  ({a3['validation_checks']}/7 checks)")
     print(f"    {'Similarity to query:':22} {t.green(str(a3['similarity_to_query']))}")
     print(f"    {'Receipt:':22} Available")
     print()
     pause(p)
 
-    print(f"  {t.bold('Provenance Chain')}")
+    provenance_note = a3.get("provenance_note", "")
+    chain_label = f"  {t.bold('Provenance Chain')}"
+    if provenance_note:
+        chain_label += f"  {t.dim('(' + provenance_note + ')')}"
+    print(chain_label)
     print()
     for step in a3["provenance"]:
         status_str = t.green(step["status"])
@@ -429,8 +441,12 @@ def _load_corpus_fixture() -> dict:
         n = float(np.linalg.norm(v))
         return v / n if n > 0 else v
 
+    src_bin = corpus["source_binary"]   # NATIVE=OFF, sha8=034dd747
+    qry_bin = corpus["query_binary"]    # NATIVE=ON,  sha8=16c03373
+
+    # Act 1: same function, two real builds — honest cross-build behavioral diff
     fa_bins = corpus["behavioral_corpus"]["ggml_vec_dot_q8_0_q8_0"]["bins"]
-    fb_bins = corpus["behavioral_corpus"]["ggml_vec_dot_f16"]["bins"]
+    fb_bins = corpus["query_bins"]   # ggml_vec_dot_q8_0_q8_0 from NATIVE=ON build
     fa_vec = to_vec(fa_bins)
     fb_vec = to_vec(fb_bins)
     act1_sim = round(float(np.dot(fa_vec, fb_vec)), 4)
@@ -457,6 +473,7 @@ def _load_corpus_fixture() -> dict:
         else:
             unchanged.append({"name": region})
 
+    # Act 2: search corpus — exclude the query function itself
     corpus_entries = {k: v for k, v in corpus["behavioral_corpus"].items()
                      if k != "ggml_vec_dot_q8_0_q8_0"}
     matches = []
@@ -468,33 +485,36 @@ def _load_corpus_fixture() -> dict:
         m["rank"] = i + 1
 
     best = matches[0]
-    best_entry = corpus["behavioral_corpus"][best["key"]]
-
-    import datetime
-    ts = fixture_meta["act3"]["provenance"][0]["timestamp"]
 
     return {
         "corpus_n": len(corpus_entries),
-        "_source": f"computed from phifp_corpus.json  (sha8={corpus['source_binary']['sha8']})",
+        "corpus_scope": "quantization kernel family — within-family similarity ranking",
+        "_source": f"computed from phifp_corpus.json  (sha8={src_bin['sha8']})",
         "act1": {
-            "firmware_a": {"label": "firmware_v1_2.bin",
-                           "collected": fixture_meta["act1"]["firmware_a"]["collected"],
-                           "metrics": {str(i): fa_bins[i] for i in range(16)}},
-            "firmware_b": {"label": "firmware_v1_3.bin",
-                           "collected": fixture_meta["act1"]["firmware_b"]["collected"],
-                           "metrics": {str(i): fb_bins[i] for i in range(16)}},
+            "firmware_a": {
+                "label": f"test-quantize-perf  sha8={src_bin['sha8']}",
+                "build":  src_bin["build_flags"],
+                "function": "ggml_vec_dot_q8_0_q8_0",
+                "collected": "2026-03-14",
+            },
+            "firmware_b": {
+                "label": f"test-quantize-perf  sha8={qry_bin['sha8']}",
+                "build":  qry_bin["build_flags"],
+                "function": "ggml_vec_dot_q8_0_q8_0",
+                "collected": "2026-06-05",
+            },
             "similarity": act1_sim,
             "regions": {"changed": changed, "unchanged": unchanged},
         },
         "act2": {
-            "query_label": fixture_meta["act2"]["query_label"],
+            "query_label": f"ggml_vec_dot_q8_0_q8_0  sha8={src_bin['sha8']}  (baseline profile)",
             "matches": matches[:4],
         },
         "act3": {
             "label": best["label"],
             "wave_id": best["key"],
-            "source": "System Library Corpus",
-            "collected": "live",
+            "source": f"test-quantize-perf corpus  (sha8={src_bin['sha8']})",
+            "provenance_note": "collection receipt — Jetson Orin Nano, 2026-03-14",
             "validated": "PASS",
             "validation_checks": 7,
             "similarity_to_query": best["similarity"],
