@@ -90,7 +90,7 @@ def act1_fixture(pause: float) -> None:
     anchor = fns[anchor_sym]
     _act(f"Stored descriptor for {anchor_sym}")
     _info(f"node             PHIFP:{anchor_sym}:{src['sha8']}")
-    _info(f"mutation         {anchor['mutation']}  (instruction 30 is a dead write)")
+    _info(f"mutation         {anchor['mutation']}  (dead write in source build — see Act 2)")
     _info(f"patch            NOP  (d5 03 20 1f)")
     _info(f"oracle speedup   {anchor['oracle_speedup']}×")
     _info(f"risk             {anchor['risk']}")
@@ -223,10 +223,11 @@ def act2_compute(pause: float) -> None:
     if gate["verdict"] == "TRANSFER_CANDIDATE":
         _info(f"  Mask bits[4:0] (Rd field): both → {gate['canonical']}  ← MATCH")
         _info(f"  Rd: v{gate['src_rd']} (source) → v{gate['tgt_rd']} (target) — rename only")
-        _info("  Opcode class identical. Dead write is dead in any register.")
+        _info("  Opcode class identical. Gate passes: architecturally compatible.")
         print()
         _ok(f"TRANSFER_CANDIDATE — {gate['level']} (Rd-rename only)  [computed]")
         _ok(f"Binary integrity: {receipt['phase2_result']['verdicts'][0]['binary_integrity']}")
+        _warn("Phase 2 is a pre-filter. Oracle check on target required before deployment.")
     else:
         _warn(f"MISS — {gate['reason']}")
 
@@ -250,11 +251,27 @@ def act2_compute(pause: float) -> None:
 
     print()
     c = receipt["conclusions"]
-    _info(f"Result: {c['phase2_discrimination']}")
+    _info(f"Gate result: {c['phase2_discrimination']}")
     _info("Overmatching would have been 4/4 — the gate earns its place.")
+
+    # Wall-clock results
+    v0 = receipt["phase2_result"]["verdicts"][0]
+    wc_native = v0.get("native_on_wall_clock", {})
+    if wc_native:
+        print()
+        _act("Wall-clock on NATIVE=ON/LTO=ON target  (oracle not yet run)")
+        _info(f"  baseline  {wc_native['baseline_tps']} t/s")
+        _info(f"  patched   {wc_native['patched_tps']} t/s   → {wc_native['wall_clock_speedup']}×")
+        _warn(f"Oracle on target: {wc_native['oracle_on_target']}")
+        _info(f"  Disassembly shows instr[30] is a necessary accumulator zero-init")
+        _info(f"  in this build variant — not a dead write. LTO restructured the")
+        _info(f"  loop. Speedup here is from computing incorrect output. Oracle")
+        _info(f"  on target would reject this transfer.")
+
     wc = receipt["phase2_result"]["verdicts"][1].get("wall_clock_result", {})
     if wc:
-        _info(f"Wall-clock on transfer candidate: {wc['speedup']}×  ({wc['interpretation']})")
+        print()
+        _info(f"q4_0_q8_0 wall-clock (source oracle 1.33×): {wc['speedup']}×  ({wc['interpretation']})")
     time.sleep(pause)
 
 
@@ -450,15 +467,22 @@ def summary(live: bool) -> None:
     _banner("Summary — PHI Transfer Ladder")
 
     rows = [
-        ("Stores optimization as reusable artifact",   "✅"),
-        ("Recognizes similar function behavior",        "✅"),
-        ("Retrieves prior optimization family",         "✅"),
-        ("Ranks related variants by similarity",        "✅"),
-        ("Applies only if register-norm gates pass",    "✅"),
-        ("Direct patch on this variant",                "❌  correct rejection — warm-start returned"),
+        ("Stores optimization as reusable artifact",       "✅"),
+        ("Recognizes similar function behavior",            "✅"),
+        ("Retrieves prior optimization family",             "✅"),
+        ("Ranks related variants by similarity",            "✅"),
+        ("Phase 2: filters incompatible mutations",         "✅  (2/4 rejected on opcode-class mismatch)"),
+        ("Oracle on target required before deployment",     "⚠️   pipeline step — not shown in this demo"),
+        ("dead@30 oracle on NATIVE=ON target",              "❌  not dead in this build variant — LTO restructured loop"),
+        ("Direct patch on Act 3 variant",                   "❌  correct rejection — warm-start returned"),
     ]
     for label, status in rows:
-        color = GREEN if status.startswith("✅") else (RED if status.startswith("❌") else YELLOW)
+        if status.startswith("✅"):
+            color = GREEN
+        elif status.startswith("❌"):
+            color = RED
+        else:
+            color = YELLOW
         print(f"  {color}{status:<4}{RST}  {label}")
 
     print()
@@ -467,10 +491,14 @@ def summary(live: bool) -> None:
     _info("optimization candidates from behavioral similarity rather than")
     _info("symbol identity.")
     print()
-    _info("The MISS after retrieval is correct behavior: PHI recognized")
-    _info("the function family and correctly refused to apply a mutation")
-    _info("across an opcode-class boundary. This is what you want from a")
-    _info("system that touches live binaries.")
+    _info("Phase 2 gate is a pre-filter: catches opcode-class incompatibility")
+    _info("before spending oracle cycles. Passing Phase 2 means architecturally")
+    _info("compatible — it does not mean the instruction is dead in the target.")
+    _info("The oracle check on the target binary is the deployment gate.")
+    print()
+    _info("dead@30 passes Phase 2 (Rd-rename only) but fails correctness")
+    _info("analysis on NATIVE=ON/LTO=ON: instr[30] is a necessary sdot")
+    _info("accumulator zero-init in that build variant, not a dead write.")
     print()
     mode = "live" if live else "fixture"
     _info(f"Mode: {mode}")

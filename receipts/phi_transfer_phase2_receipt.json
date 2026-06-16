@@ -38,7 +38,17 @@
         "phase2": "TRANSFER_CANDIDATE (L1 — Rd-rename only)",
         "delta": "bit 0 of Rd field: register 3 → register 2",
         "opcode_class_match": true,
-        "binary_integrity": "PASS (binary runs, valid throughput)"
+        "binary_integrity": "PASS (binary runs, valid throughput)",
+        "native_on_wall_clock": {
+          "target_binary": "build-fair (GGML_NATIVE=ON, LTO=ON, -mcpu=cortex-a78ae)",
+          "target_sha8": "2eea51a1",
+          "baseline_tps": 7.24,
+          "patched_tps": 8.10,
+          "wall_clock_speedup": 1.119,
+          "oracle_on_target": "NOT RUN",
+          "correctness_analysis": "Disassembly shows instr[30] is a necessary accumulator zero-init in this build variant, not a dead write. LTO restructured the loop: ldp q4,q2 loads INT8 data into v2; sdot v4.4s,v2.16b uses v2 as data input; mov v2.16b,v6.16b (instr[30]) then zeros v2 for sdot v2.4s,v16.16b (accumulator). Removing the zero-init causes sdot to accumulate into raw INT8 bytes instead of zero — wrong result. The 1.119× throughput is from computing incorrect output faster. Oracle on target would fail.",
+          "conclusion": "Phase 2 gate correctly passed (opcode-class compatible, Rd-rename only). Oracle on target binary is required before deployment and would reject this transfer. Phase 2 is a pre-filter, not a deployment gate."
+        }
       },
       {
         "symbol": "ggml_vec_dot_q4_0_q8_0",
@@ -72,7 +82,10 @@
   "conclusions": {
     "transfer_candidate_applied_correctly": true,
     "phase2_discrimination": "2/4 correct promotions (MISS→TRANSFER_CANDIDATE), 2/4 correct rejections",
-    "optimization_transfer_claim": "Mutation descriptors stored in the lattice ARE reusable across register-renamed codegen variants. Wall-clock gain requires the target to have the same optimization gap — NATIVE=ON compiler already closes it.",
-    "next_step": "Phase 3 — behavior-based recognition without symbol name"
+    "phase2_role": "Pre-filter only. Passing Phase 2 means the mutation is architecturally compatible (opcode class, register rename). It does not mean the instruction is dead in the target context.",
+    "oracle_on_target_required": true,
+    "dead_at_30_on_native_on": "NOT dead. LTO restructured the loop such that instr[30] serves as sdot accumulator zero-init. Oracle on NATIVE=ON target would fail. Wall-clock 1.119x is from computing incorrect output.",
+    "optimization_transfer_claim": "PHI correctly stored and retrieved the mutation descriptor. Phase 2 gate correctly identified architectural compatibility. Oracle on target is the deployment gate — it would reject dead@30 on NATIVE=ON/LTO=ON because the instruction is not dead in that build variant.",
+    "next_step": "Phase 3 — behavior-based recognition without symbol name. Separately: find a mutation that passes Phase 2 AND oracle on NATIVE=ON target."
   }
 }
