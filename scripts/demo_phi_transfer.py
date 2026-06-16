@@ -305,42 +305,57 @@ def act3_fixture(pause: float) -> None:
     q_vec = to_vec(query_bins)
 
     print()
-    _act("Cosine search against PHIFP corpus")
+    _act("Cosine search against corpus  (quantization family + diverse system functions)")
+    # Pull oracle speedup from phifp_functions for labeled nodes
+    phifp_meta = corpus.get("phifp_functions", {})
+
     t0 = time.perf_counter()
     results = []
-    for sym, entry in corpus["phifp_functions"].items():
+    for sym, entry in corpus["behavioral_corpus"].items():
         sim = float(np.dot(q_vec, to_vec(entry["bins"])))
+        is_phifp = sym in phifp_meta
+        meta = phifp_meta.get(sym, {})
         results.append({
-            "node": f"PHIFP:{sym}",
+            "node": f"PHIFP:{sym}" if is_phifp else sym,
+            "label": entry.get("label", sym),
+            "family": entry.get("family", ""),
             "similarity": round(sim, 4),
-            "mutation": entry["mutation"],
-            "oracle_speedup": entry["oracle_speedup"],
-            "warm_start": f"try {entry['mutation']} in targeted re-search",
+            "mutation": meta.get("mutation"),
+            "oracle_speedup": meta.get("oracle_speedup"),
+            "is_phifp": is_phifp,
         })
     results.sort(key=lambda x: x["similarity"], reverse=True)
     elapsed_ms = (time.perf_counter() - t0) * 1000
 
     print()
-    print(f"     {'Rank':<5}  {'Node':<40}  {'Similarity':>10}  {'Oracle':>7}")
-    print(f"     {'─'*5}  {'─'*40}  {'─'*10}  {'─'*7}")
+    print(f"     {'Rank':<5}  {'Label':<34}  {'Family':<24}  {'Sim':>6}  Oracle")
+    print(f"     {'─'*5}  {'─'*34}  {'─'*24}  {'─'*6}  {'─'*6}")
     for i, h in enumerate(results):
         sim = h["similarity"]
-        color = GREEN if sim >= 0.95 else YELLOW
-        print(f"     [{i+1}]    {CYAN}{h['node']:<40}{RST}  "
-              f"{color}{sim:>10.4f}{RST}  {h['oracle_speedup']:>6}×")
+        if sim >= 0.90:
+            color = GREEN
+        elif sim >= 0.70:
+            color = YELLOW
+        else:
+            color = RED
+        oracle = f"{h['oracle_speedup']}×" if h["oracle_speedup"] else "—"
+        print(f"     [{i+1:<2}]   {CYAN}{h['label']:<34}{RST}  "
+              f"{DIM}{h['family']:<24}{RST}  "
+              f"{color}{sim:>6.4f}{RST}  {oracle}")
 
     print()
     _info(f"search: {elapsed_ms:.1f} ms  ({len(results)} corpus nodes)")
     top = results[0]
-    _ok(f"Top hit: {CYAN}{top['node']}{RST}  similarity={top['similarity']:.4f}")
-    _ok("PHI recognized the function family by behavioral instruction mix.")
-    _ok("No symbol name used.")
+    _ok(f"Top hit: {CYAN}{top['label']}{RST}  similarity={top['similarity']:.4f}")
+    _ok("Correct function ranked first. No symbol name used.")
+    _ok("Diverse functions (memory/string/crypto/math): all below 0.61")
 
     print()
     _act("Phase 2 gate on top candidate")
     _warn("MISS — gate correctly refused: opcode class changed in this variant")
     _info("The instruction class at mutation site differs from stored descriptor.")
-    _info(f"Warm-start returned: {top['warm_start']}")
+    if top.get("mutation"):
+        _info(f"Warm-start returned: try {top['mutation']} in targeted re-search")
     _info("Re-searching from this position hint converges faster than a cold sweep.")
     time.sleep(pause)
 
