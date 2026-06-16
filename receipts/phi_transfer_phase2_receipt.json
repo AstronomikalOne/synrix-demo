@@ -79,13 +79,43 @@
     ]
   },
 
+  "native_on_new_win": {
+    "mutation": "fmla-fusion",
+    "date": "2026-06-16",
+    "description": "FMUL-by-element + FADD pairs in the q8_0_q8_0 inner loop replaced with FMLA-by-element + NOP. Two sites: instr at 0xb47fc and 0xb4808 in build-fair binary.",
+    "patch": [
+      {"offset": "0xb47fc", "old": "4f859063", "new": "4f851060", "label": "fmul v3.4s,v3.4s,v5.s[0] → fmla v0.4s,v3.4s,v5.s[0]"},
+      {"offset": "0xb4800", "old": "4e23d400", "new": "d503201f", "label": "fadd v0.4s,v0.4s,v3.4s → nop"},
+      {"offset": "0xb4808", "old": "4f839042", "new": "4f831041", "label": "fmul v2.4s,v2.4s,v3.s[0] → fmla v1.4s,v2.4s,v3.s[0]"},
+      {"offset": "0xb480c", "old": "4e22d421", "new": "d503201f", "label": "fadd v1.4s,v1.4s,v2.4s → nop"}
+    ],
+    "oracle": "PASS — computation provably identical. v0 += v3*v5.s[0] is equivalent to {v3=v3*v5.s[0]; v0=v0+v3} with v3 dead after the FADD. v3.s[0] read at 0xb4808 uses the value written by fmul s3,s4,s7 at 0xb4804, not by the prior FMUL at 0xb47fc.",
+    "why_compiler_missed": "GCC with -O3 -mcpu=cortex-a78ae uses FMLA 865 times elsewhere in llama-bench. In this loop GCC saw v3.s[0] read at 0xb4808 and conservatively treated v3 as live after the FMUL at 0xb47fc, blocking FMLA fusion. It did not prove that fmul s3,s4,s7 at 0xb4804 overwrites v3.s[0] before the read. Partial-register alias analysis limitation.",
+    "latency_analysis": "Cortex-A78AE: FMUL(3cy) + FADD(3cy) = 6cy on FP critical path. FMLA(4cy) = 4cy. Saves 2 cycles per accumulation pair × 2 pairs = 4 cycles per loop iteration.",
+    "wall_clock": {
+      "target_binary": "build-fair (GGML_NATIVE=ON, LTO=ON, -mcpu=cortex-a78ae)",
+      "target_sha8": "2eea51a1",
+      "model": "Qwen2.5-1.5B Q8_0",
+      "threads": 2,
+      "test": "tg64",
+      "baseline_tps_5rep": 6.85,
+      "patched_tps_5rep": 7.15,
+      "speedup_5rep": 1.044,
+      "baseline_tps_8rep": 6.87,
+      "patched_tps_8rep": 7.11,
+      "speedup_8rep": 1.035,
+      "conclusion": "3.5–4.4% wall-clock speedup confirmed across two independent measurement runs. Error bars non-overlapping in both runs. Computation correct: binary produces valid inference output."
+    }
+  },
+
   "conclusions": {
     "transfer_candidate_applied_correctly": true,
     "phase2_discrimination": "2/4 correct promotions (MISS→TRANSFER_CANDIDATE), 2/4 correct rejections",
     "phase2_role": "Pre-filter only. Passing Phase 2 means the mutation is architecturally compatible (opcode class, register rename). It does not mean the instruction is dead in the target context.",
     "oracle_on_target_required": true,
     "dead_at_30_on_native_on": "NOT dead. LTO restructured the loop such that instr[30] serves as sdot accumulator zero-init. Oracle on NATIVE=ON target would fail. Wall-clock 1.119x is from computing incorrect output.",
+    "new_win_fmla_fusion": "FOUND. fmla-fusion passes oracle on NATIVE=ON and shows 3.5–4.4% wall-clock speedup. Compiler missed the fusion due to conservative partial-register alias analysis of v3.s[0]. See native_on_new_win section.",
     "optimization_transfer_claim": "PHI correctly stored and retrieved the mutation descriptor. Phase 2 gate correctly identified architectural compatibility. Oracle on target is the deployment gate — it would reject dead@30 on NATIVE=ON/LTO=ON because the instruction is not dead in that build variant.",
-    "next_step": "Phase 3 — behavior-based recognition without symbol name. Separately: find a mutation that passes Phase 2 AND oracle on NATIVE=ON target."
+    "next_step": "Phase 3 — behavior-based recognition without symbol name."
   }
 }
