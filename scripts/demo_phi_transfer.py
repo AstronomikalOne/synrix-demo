@@ -291,6 +291,22 @@ def act2_compute(pause: float) -> None:
             _ok(f"wall-clock  {wc2['baseline_tps_8rep']} → {wc2['patched_tps_8rep']} t/s"
                 f"  →  {wc2['speedup_8rep']:.3f}×  (8 reps, non-overlapping error bars)")
             _ok(wc2["conclusion"][:80])
+    # Foreign runtime probe
+    probe = receipt.get("foreign_runtime_probe", {})
+    if probe:
+        print()
+        _act("Foreign runtime probe — same descriptor, different project")
+        sr = probe.get("scan_result", {})
+        _info(f"Target: {probe.get('target', '')}")
+        _info(f"Project: {probe.get('target_project', '')}")
+        _info(f"Pattern: {sr.get('pattern', '')}")
+        _ok(f"Hits: {sr.get('hit_count', 0)} — {sr.get('propagation', '')}")
+        tc = probe.get("transfer_classification", {})
+        _info(f"Transfer form: {tc.get('form', '')} — {tc.get('contrast', '')[:70]}...")
+        print()
+        _info("saxpy_k (y += a*x) already uses FMLA correctly in OpenBLAS.")
+        _info("Only cscal_k (complex multiply) missed it — systematic pattern")
+        _info("propagated to all CPU variants by copy-paste in the assembly source.")
     time.sleep(pause)
 
 
@@ -507,6 +523,7 @@ def summary(live: bool) -> None:
         ("Ranks related variants by similarity",            "✅"),
         ("Phase 2: filters incompatible mutations",         "✅  (2/4 rejected on opcode-class mismatch)"),
         ("FMLA fusion — passes oracle on NATIVE=ON target", "✅  3.5% wall-clock, compiler missed, GCC regression"),
+        ("Foreign runtime probe — OpenBLAS cscal_k",        "✅  15 hits, all CPU variants, L2 transfer (register-rename)"),
         ("Oracle on target required before deployment",     "⚠️   pipeline step — not shown in this demo"),
         ("dead@30 oracle on NATIVE=ON target",              "❌  not dead in this build variant — LTO restructured loop"),
         ("Direct patch on Act 3 variant",                   "❌  correct rejection — warm-start returned"),
@@ -539,6 +556,12 @@ def summary(live: bool) -> None:
     _info("pairs in the hot loop that GCC didn't fuse. Conservative partial-register")
     _info("alias analysis blocked FMLA fusion at instr 0xb47fc/0xb4808.")
     _info("Oracle PASS. 3.5-4.4% wall-clock speedup on Cortex-A78AE.")
+    print()
+    _info("foreign-runtime probe: same mutation descriptor scanned against OpenBLAS")
+    _info("(different project, hand-written assembly). Found FMLA-fusible pattern in")
+    _info("cscal_k — 15 CPU-specific variants all contain the same missed fusion,")
+    _info("propagated by copy-paste. saxpy_k correctly uses FMLA. The descriptor")
+    _info("generalizes cross-project without modification.")
     print()
     mode = "live" if live else "fixture"
     _info(f"Mode: {mode}")

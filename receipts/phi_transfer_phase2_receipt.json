@@ -108,6 +108,32 @@
     }
   },
 
+  "foreign_runtime_probe": {
+    "target": "libopenblas.so.0 (aarch64-linux-gnu, system package)",
+    "target_project": "OpenBLAS — different codebase, hand-written assembly, not llama.cpp",
+    "mutation_class": "fmla-fusion",
+    "source_descriptor": "llama-bench (build-fair) ggml_vec_dot_q8_0_q8_0",
+    "scan_date": "2026-06-16",
+    "scan_result": {
+      "pattern": "fmul v5.4s, v2.4s, v17.4s + fadd v5.4s, v5.4s, v6.4s",
+      "hit_count": 15,
+      "functions": [
+        "cscal_k_ARMV8", "cscal_k_CORTEXA53", "cscal_k_CORTEXA57",
+        "cscal_k_CORTEXA72", "cscal_k_CORTEXA73", "cscal_k_NEOVERSEN1",
+        "cscal_k_NEOVERSEV1", "cscal_k_NEOVERSEN2", "cscal_k_CORTEXA55",
+        "cscal_k_FALKOR", "cscal_k_THUNDERX", "cscal_k_THUNDERX2T99",
+        "cscal_k_TSV110", "cscal_k_EMAG8180", "cscal_k_THUNDERX3T110"
+      ],
+      "propagation": "Same pattern in ALL 15 per-microarchitecture variants — systematic blind spot"
+    },
+    "transfer_classification": {
+      "form": "L2 (register-rename required)",
+      "contrast": "q8_0 was L1 (direct fmla swap, 2 patches). cscal is L2: reorder fmul_v6 before fmul_v5; replace fmul_v5+fadd with fmla_v6+nop; update st2 dest v5→v6 (4 patches + conceptual reorder).",
+      "reason_for_miss": "Complex arithmetic decomposition: Im(z)=Re(x)*Im(a)+Im(x)*Re(a) requires two independent FMUL outputs before the FADD, which makes FMLA non-obvious even to a human author writing assembly."
+    },
+    "significance": "The mutation descriptor discovered in llama.cpp's GCC-compiled q8_0 inner loop generalizes to a hand-written assembly BLAS library in a different project. The scan required no code changes — just running the stored pattern against a new binary. In OpenBLAS, the miss propagated identically to all 15 CPU-specific variants, showing the pattern is systematic. saxpy_k (the simpler y+=a*x operation) correctly uses FMLA — only the complex-valued cscal_k misses it."
+  },
+
   "conclusions": {
     "transfer_candidate_applied_correctly": true,
     "phase2_discrimination": "2/4 correct promotions (MISS→TRANSFER_CANDIDATE), 2/4 correct rejections",
@@ -116,6 +142,7 @@
     "dead_at_30_on_native_on": "NOT dead. LTO restructured the loop such that instr[30] serves as sdot accumulator zero-init. Oracle on NATIVE=ON target would fail. Wall-clock 1.119x is from computing incorrect output.",
     "new_win_fmla_fusion": "FOUND. fmla-fusion passes oracle on NATIVE=ON and shows 3.5–4.4% wall-clock speedup. Compiler missed the fusion due to conservative partial-register alias analysis of v3.s[0]. See native_on_new_win section.",
     "optimization_transfer_claim": "PHI correctly stored and retrieved the mutation descriptor. Phase 2 gate correctly identified architectural compatibility. Oracle on target is the deployment gate — it would reject dead@30 on NATIVE=ON/LTO=ON because the instruction is not dead in that build variant.",
+    "foreign_runtime_result": "FOUND. Same mutation class (fmla-fusion) appears in OpenBLAS cscal_k — a different project, different build toolchain, hand-written assembly. 15 instances, all per-CPU variants. L2 transfer (register-rename required, not a direct drop-in). See foreign_runtime_probe section.",
     "next_step": "Phase 3 — behavior-based recognition without symbol name."
   }
 }
