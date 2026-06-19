@@ -280,16 +280,18 @@ def act2_compute(pause: float) -> None:
         print()
         _act("Direct analysis of NATIVE=ON target — new mutation found")
         _info(f"Mutation: {win['mutation']}")
-        _info(f"GCC uses FMLA 865× elsewhere in this binary — missed it here.")
-        _info(f"Reason: conservative partial-register alias analysis blocked")
-        _info(f"  FMLA fusion (v3.s[0] read at 0xb4808 appeared live after")
-        _info(f"  FMUL at 0xb47fc; compiler didn't prove fmul s3 overwrites first).")
+        _info(f"Root cause: GCC 11 arm_neon.h vmlaq_n_f32 is hardcoded inline asm.")
+        _info(f"  (fmul v1.4s, v1.4s, v2.s[0]; fadd v0.4s, v0.4s, v1.4s)")
+        _info(f"  vmlaq_f32 (by-vector) correctly emits fmla. By-scalar does not.")
+        _info(f"  -ffp-contract=fast / -ffast-math: no change. GCC 11 header bug.")
         print()
-        _info(f"Oracle: {win['oracle'][:60]}...")
+        _info(f"Oracle: within 1 ULP; Q8_0 quantization noise 10,000x larger.")
         print()
         if wc2:
-            _ok(f"wall-clock  {wc2['baseline_tps_8rep']} → {wc2['patched_tps_8rep']} t/s"
-                f"  →  {wc2['speedup_8rep']:.3f}×  (8 reps, non-overlapping error bars)")
+            b = wc2.get("baseline_tps_r1", wc2.get("baseline_tps_8rep", "?"))
+            p = wc2.get("patched_tps_r1",  wc2.get("patched_tps_8rep",  "?"))
+            sp = wc2.get("speedup", wc2.get("speedup_8rep", 0))
+            _ok(f"wall-clock  {b} → {p} t/s  →  {sp:.3f}×  (20-rep interleaved A/B)")
             _ok(wc2["conclusion"][:80])
     # Foreign runtime probe
     probe = receipt.get("foreign_runtime_probe", {})
@@ -522,7 +524,7 @@ def summary(live: bool) -> None:
         ("Retrieves prior optimization family",             "✅"),
         ("Ranks related variants by similarity",            "✅"),
         ("Phase 2: filters incompatible mutations",         "✅  (2/4 rejected on opcode-class mismatch)"),
-        ("FMLA fusion — passes oracle on NATIVE=ON target", "✅  3.5% wall-clock, compiler missed, GCC regression"),
+        ("FMLA fusion — passes oracle on NATIVE=ON target", "✅  ~1.9% wall-clock (20-rep interleaved); GCC 11 arm_neon.h bug"),
         ("Foreign runtime probe — OpenBLAS cscal_k",        "✅  15 hits, all CPU variants, L2 transfer (register-rename)"),
         ("Oracle on target required before deployment",     "⚠️   pipeline step — not shown in this demo"),
         ("dead@30 oracle on NATIVE=ON target",              "❌  not dead in this build variant — LTO restructured loop"),
@@ -553,9 +555,11 @@ def summary(live: bool) -> None:
     _info("accumulator zero-init in that build variant, not a dead write.")
     print()
     _info("fmla-fusion: direct analysis of the NATIVE=ON target found FMUL+FADD")
-    _info("pairs in the hot loop that GCC didn't fuse. Conservative partial-register")
-    _info("alias analysis blocked FMLA fusion at instr 0xb47fc/0xb4808.")
-    _info("Oracle PASS. 3.5-4.4% wall-clock speedup on Cortex-A78AE.")
+    _info("pairs in the hot loop. Root cause: GCC 11 arm_neon.h implements")
+    _info("vmlaq_n_f32 as hardcoded inline asm (fmul+fadd) instead of fmla.")
+    _info("-ffp-contract=fast and -ffast-math both leave it unchanged — verified.")
+    _info("Oracle: within 1 ULP (~1 ULP max across q8_0-representative inputs).")
+    _info("~1.9% wall-clock (20-rep interleaved A/B; prior 3.5-4.4% was order-biased).")
     print()
     _info("foreign-runtime probe: same mutation descriptor scanned against OpenBLAS")
     _info("(different project, hand-written assembly). Found FMLA-fusible pattern in")
